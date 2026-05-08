@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-08
+
+Feature matrix complete: all three headline commands now work for both Python and JS/TS.
+
+### Added
+- Phase 5: `cloak obfuscate` now handles JavaScript and TypeScript files, dispatched by extension. Per-file rename of module-level identifiers starting with `_` (function declarations, class declarations, generator functions, `const`/`let`/`var` simple bindings) using tree-sitter for parsing and byte-splice for output. Skips dunder-like names (`__version`), all-underscore names, and anything matching `policy.public_api` (with trailing-`*` wildcard support). Property access (`obj._foo`), shorthand object properties, and destructuring patterns are deliberately not renamed in v1 — they would silently change object shapes and risk runtime breakage. Limitations are caught by `--verify` (cross-file imports, local-variable shadowing of module-level `_names`).
+- `cloak obfuscate` against a mixed Python+JS repo now transforms both languages in one pass with one manifest, one rename map, and one verify command.
+
 ## [0.1.2] - 2026-05-08
 
 ### Added

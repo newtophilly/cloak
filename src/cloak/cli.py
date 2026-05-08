@@ -247,7 +247,7 @@ def _emit_obfuscate_terminal(policy: Policy, result: ObfuscateResult) -> None:
         "[bold green]✓ Obfuscated[/bold green]",
         f"output:        {result.output_dir}",
         f"manifest:      {result.manifest_path}",
-        f"transformed:   {result.files_transformed} python files",
+        f"transformed:   {result.files_transformed} source files",
         f"copied:        {result.files_copied} other files",
         f"renames:       {len(result.rename_map)} module-private identifiers",
     ]

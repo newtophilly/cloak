@@ -17,7 +17,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from cloak import __version__
+from cloak.context.js_redactor import language_for_extension
 from cloak.filesystem import walk_repo
+from cloak.obfuscate.js_transformer import transform_js_like_source
 from cloak.obfuscate.manifest import Manifest
 from cloak.obfuscate.transformer import transform_python_source
 from cloak.policy import Policy
@@ -81,6 +83,8 @@ def run_obfuscate(
 
         source_hashes[str(rel)] = _sha256_file(src_file)
 
+        js_like_kind = language_for_extension(src_file.suffix)
+
         if src_file.suffix == ".py":
             try:
                 source_text = src_file.read_text(encoding="utf-8")
@@ -91,7 +95,7 @@ def run_obfuscate(
                 continue
 
             try:
-                result = transform_python_source(source_text, policy, file_label=str(rel))
+                py_result = transform_python_source(source_text, policy, file_label=str(rel))
             except SyntaxError:
                 # Don't break on un-parseable files. Copy them through unchanged.
                 shutil.copy2(src_file, out_file)
@@ -99,9 +103,24 @@ def run_obfuscate(
                 files_copied += 1
                 continue
 
-            out_file.write_text(result.output_text, encoding="utf-8")
+            out_file.write_text(py_result.output_text, encoding="utf-8")
             output_hashes[str(rel)] = _sha256_file(out_file)
-            for orig, new in result.rename_map.items():
+            for orig, new in py_result.rename_map.items():
+                rename_map_global[f"{rel}:{orig}"] = new
+            files_transformed += 1
+        elif js_like_kind is not None:
+            try:
+                source_text = src_file.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                shutil.copy2(src_file, out_file)
+                output_hashes[str(rel)] = _sha256_file(out_file)
+                files_copied += 1
+                continue
+
+            js_result = transform_js_like_source(source_text, js_like_kind, policy)
+            out_file.write_text(js_result.output_text, encoding="utf-8")
+            output_hashes[str(rel)] = _sha256_file(out_file)
+            for orig, new in js_result.rename_map.items():
                 rename_map_global[f"{rel}:{orig}"] = new
             files_transformed += 1
         else:

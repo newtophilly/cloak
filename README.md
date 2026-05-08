@@ -144,7 +144,7 @@ CLOAK is designed to be called as a subprocess from other developer tools and AI
 | 3 | `cloak context` for Python | ✅ Done |
 | 3.5 | `cloak context` JS/TS via tree-sitter | ✅ Done |
 | 4 | `cloak obfuscate` Python with `--verify` | ✅ Done (v1) |
-| 5 | `cloak obfuscate` JS/TS (javascript-obfuscator) | ⏳ |
+| 5 | `cloak obfuscate` JS/TS via tree-sitter | ✅ Done (v1) |
 | 6 | `cloak eval` (LLM-prompt-based regression harness) | ⏳ |
 
 ## Contributing
