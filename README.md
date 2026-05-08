@@ -1,6 +1,7 @@
 # CLOAK
 
 [![ci](https://github.com/newtophilly/cloak/actions/workflows/ci.yml/badge.svg)](https://github.com/newtophilly/cloak/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/cloak-cli.svg)](https://pypi.org/project/cloak-cli/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 [![Python: 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](pyproject.toml)
 
@@ -42,11 +43,14 @@ Honest positioning matters in security tooling.
 
 ## Quickstart
 
-```bash
-# Once published to PyPI:
-pip install cloak
+> The PyPI package is named `cloak-cli` (the simpler `cloak` name was already taken).
+> The command on your `$PATH` is still just `cloak`.
 
-# Or from source today:
+```bash
+# Install:
+pip install cloak-cli
+
+# Or from source:
 git clone https://github.com/newtophilly/cloak.git
 cd cloak
 python -m venv .venv && source .venv/bin/activate

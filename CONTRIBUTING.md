@@ -43,7 +43,7 @@ CLOAK is published to PyPI via a GitHub Actions workflow that runs on tag pushes
 
 1. Create the project on PyPI as a *pending* Trusted Publisher:
    - https://pypi.org/manage/account/publishing/
-   - PyPI Project Name: `cloak`
+   - PyPI Project Name: `cloak-cli` (the `cloak` name was already taken; the CLI binary on `$PATH` is still `cloak`)
    - Owner: `newtophilly`
    - Repository name: `cloak`
    - Workflow filename: `release.yml`

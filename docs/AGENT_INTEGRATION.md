@@ -37,16 +37,16 @@ Minimum supported version for stable agent integration: **0.0.1** (current alpha
 ## Installation
 
 ```bash
-# From source (current alpha — preferred until PyPI release)
+# From PyPI (preferred — the package is `cloak-cli`, the CLI binary is still `cloak`):
+pip install cloak-cli
+
+# From source:
 git clone https://github.com/newtophilly/cloak.git
 cd cloak
 pip install .
 
-# Or for development
+# For development:
 pip install -e ".[dev]"
-
-# PyPI release: TBD (planned with Phase 2)
-# pip install cloak
 ```
 
 If installation fails, do not silently skip CLOAK in a workflow that requested it. Surface the error to the user.

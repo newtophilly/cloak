@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "cloak"
+name = "cloak-cli"
 dynamic = ["version"]
 description = "Local CLI for safer LLM workflows: redact code before pasting, generate verified obfuscated copies, enforce policy from your repo."
 readme = "README.md"

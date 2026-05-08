@@ -7,7 +7,7 @@ name: release
 #   2. Reserve the project name with a "pending Trusted Publisher":
 #        https://pypi.org/manage/account/publishing/
 #      Fill in:
-#        PyPI Project Name:    cloak
+#        PyPI Project Name:    cloak-cli  (the simpler `cloak` was taken; CLI binary is still `cloak`)
 #        Owner:                newtophilly
 #        Repository name:      cloak
 #        Workflow filename:    release.yml
@@ -55,7 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/cloak
+      url: https://pypi.org/p/cloak-cli
     permissions:
       id-token: write   # required for Trusted Publisher (OIDC)
     steps:
