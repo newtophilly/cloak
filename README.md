@@ -1,9 +1,13 @@
 # CLOAK
 
+[![ci](https://github.com/newtophilly/cloak/actions/workflows/ci.yml/badge.svg)](https://github.com/newtophilly/cloak/actions/workflows/ci.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
+[![Python: 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](pyproject.toml)
+
 > Local CLI for safer LLM workflows. Redact code before pasting into ChatGPT or Claude. Generate verified obfuscated copies for sharing. Enforce policy from your repo.
 
 > [!IMPORTANT]
-> CLOAK is **alpha software** in active development. APIs and policy format may change before 1.0. Phase 1 (CLI scaffold) is the first commit; detection, redaction, and obfuscation arrive in subsequent phases. See [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) for the roadmap.
+> CLOAK is **alpha software** in active development. APIs and policy format may change before 1.0. The three headline commands (`scan`, `context`, `obfuscate`) are functional for Python; JS/TS support arrives in Phases 3.5 and 5. See [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) for the roadmap.
 
 ## What CLOAK is
 
@@ -38,10 +42,11 @@ Honest positioning matters in security tooling.
 
 ## Quickstart
 
-> Phase 1 ships a working CLI scaffold; commands print structured status output but don't yet perform real detection or redaction. Detection logic lands in Phase 2.
-
 ```bash
-# Install (editable, from source)
+# Once published to PyPI:
+pip install cloak
+
+# Or from source today:
 git clone https://github.com/newtophilly/cloak.git
 cd cloak
 python -m venv .venv && source .venv/bin/activate
@@ -50,8 +55,25 @@ pip install -e ".[dev]"
 # Run it
 cloak --help
 cloak scan ./your-repo
-cloak context ./your-repo
-cloak obfuscate ./your-repo --out ./your-repo.cloaked
+cloak context ./your-repo --copy        # safe redacted markdown to clipboard
+cloak obfuscate ./your-repo --out ./your-repo.cloaked --verify "pytest"
+```
+
+### A real example
+
+```bash
+# 1. About to ask Claude for help on a sensitive file? Redact first:
+$ cloak context src/pricing.py --copy
+# Pasted into Claude: signatures + docstrings, bodies replaced with `...`,
+# proprietary tables (UPPER_SNAKE = {...}) replaced with `... `.
+
+# 2. Shipping a contractor a working module?
+$ cloak obfuscate src/payments --out /tmp/payments.cloaked --verify "pytest tests/payments"
+# Output is transformed AND verified — if your tests don't pass, exit 1.
+# A cloak-manifest.json with sha256s + rename map sits in the output dir.
+
+# 3. CI guardrail:
+$ cloak scan . --json   # exits 1 if any secrets, JSON for parsing.
 ```
 
 ## How `.cloakpolicy` works

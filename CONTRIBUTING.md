@@ -35,6 +35,32 @@ CLOAK markets itself as a **governance + friction** tool, not unbreakable protec
 
 Please do **not** file public issues for security vulnerabilities. Open a private security advisory at https://github.com/newtophilly/cloak/security/advisories/new with details, and we'll respond as quickly as we can.
 
+## Releasing (maintainers)
+
+CLOAK is published to PyPI via a GitHub Actions workflow that runs on tag pushes (`v*`). PyPI authentication uses a [Trusted Publisher](https://docs.pypi.org/trusted-publishers/) — no tokens stored in the repo.
+
+**One-time setup (first release only):**
+
+1. Create the project on PyPI as a *pending* Trusted Publisher:
+   - https://pypi.org/manage/account/publishing/
+   - PyPI Project Name: `cloak`
+   - Owner: `newtophilly`
+   - Repository name: `cloak`
+   - Workflow filename: `release.yml`
+   - Environment name: `pypi`
+2. Create the `pypi` GitHub environment in this repo:
+   - Settings → Environments → New environment → name `pypi`. No extra config needed.
+
+**Per-release steps:**
+
+1. Bump `__version__` in `src/cloak/__init__.py` (single source of truth — `pyproject.toml` reads from this file via `[tool.hatch.version]`).
+2. Add a CHANGELOG entry under `[Unreleased]`, then move it under a new versioned heading.
+3. Commit. Wait for `ci` to go green on `main`.
+4. Tag and push: `git tag v<VERSION> && git push origin v<VERSION>`.
+5. The `release` workflow builds an sdist + wheel and publishes them to PyPI.
+
+If the first release fails, the most likely cause is a step missed in the one-time setup above (pending Trusted Publisher not registered, or the `pypi` environment doesn't exist).
+
 ## Commit / PR conventions
 
 - One logical change per PR. If you find unrelated cleanup along the way, prefer a separate PR.

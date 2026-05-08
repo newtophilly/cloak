@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cloak"
-version = "0.0.1"
+dynamic = ["version"]
 description = "Local CLI for safer LLM workflows: redact code before pasting, generate verified obfuscated copies, enforce policy from your repo."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -52,6 +52,9 @@ Homepage = "https://github.com/newtophilly/cloak"
 Repository = "https://github.com/newtophilly/cloak"
 Issues = "https://github.com/newtophilly/cloak/issues"
 Documentation = "https://github.com/newtophilly/cloak/tree/main/docs"
+
+[tool.hatch.version]
+path = "src/cloak/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cloak"]

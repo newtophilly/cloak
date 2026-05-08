@@ -1,0 +1,67 @@
+name: release
+
+# Publishes the package to PyPI when a tag matching `v*` is pushed.
+#
+# One-time setup before the FIRST release works:
+#   1. Create a PyPI account (https://pypi.org/account/register/) if needed.
+#   2. Reserve the project name with a "pending Trusted Publisher":
+#        https://pypi.org/manage/account/publishing/
+#      Fill in:
+#        PyPI Project Name:    cloak
+#        Owner:                newtophilly
+#        Repository name:      cloak
+#        Workflow filename:    release.yml
+#        Environment name:     pypi
+#   3. In this repo settings, create the `pypi` environment under
+#      Settings → Environments → New environment → "pypi" (no extra config needed).
+#   4. Tag and push:  git tag v0.1.0 && git push origin v0.1.0
+#
+# After the first publish, the trusted publisher becomes "active" and subsequent
+# releases need only a new tag push. NO API tokens or secrets are stored in the repo.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install build
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      - name: Build sdist + wheel
+        run: python -m build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to PyPI
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/cloak
+    permissions:
+      id-token: write   # required for Trusted Publisher (OIDC)
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
