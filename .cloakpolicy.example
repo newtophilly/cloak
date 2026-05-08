@@ -1,0 +1,67 @@
+# .cloakpolicy — example/template
+#
+# Drop this file at your repo root as `.cloakpolicy` and edit to match your project.
+# Whoever has merge access to this file controls CLOAK policy. Audit changes via `git log`.
+#
+# Run `cloak policy preview ./src` to see what this policy would redact (Phase 1+).
+
+version: 1
+
+# ---------------------------------------------------------------------------
+# Paths CLOAK treats with extra care. Globs match against paths relative to
+# the repo root. Anything matching is flagged as `sensitive` by `cloak scan`
+# and aggressively redacted by `cloak context` / `cloak obfuscate`.
+# ---------------------------------------------------------------------------
+sensitive_paths:
+  - "src/pricing/**"
+  - "src/auth/**"
+  - "config/secrets/**"
+
+# ---------------------------------------------------------------------------
+# Names that must NEVER be renamed by `cloak obfuscate`. Use this for public
+# API surface that other modules or external callers depend on. Supports
+# fully-qualified names and trailing wildcards.
+# ---------------------------------------------------------------------------
+public_api:
+  - "QuoteEngine.calculate_quote"
+  - "AuthService.authenticate"
+  - "PaymentGateway.*"
+
+# ---------------------------------------------------------------------------
+# Custom secret-detection rules layered on top of the built-in scanner
+# (which wraps detect-secrets / gitleaks). Use this for company-specific
+# patterns the upstream scanners won't catch.
+# ---------------------------------------------------------------------------
+secret_rules:
+  - id: internal_api_endpoint
+    pattern: 'https?://internal\..*\.corp\.example'
+    severity: high
+  - id: customer_id_pattern
+    pattern: 'CUST-[A-Z]{3}-\d{6}'
+    severity: medium
+
+# ---------------------------------------------------------------------------
+# Strings safe to keep un-redacted (won't be encoded by `cloak obfuscate`).
+# Useful for license headers, public doc URLs, etc.
+# ---------------------------------------------------------------------------
+allow_strings:
+  - "https://docs.example.com/*"
+  - "Apache-2.0"
+
+# ---------------------------------------------------------------------------
+# Default behavior of `cloak context` (redacted markdown for LLM paste).
+# ---------------------------------------------------------------------------
+context_defaults:
+  keep_docstrings: true
+  redact_function_bodies: true
+  alias_enums: false           # set true to behave like --strict by default
+
+# ---------------------------------------------------------------------------
+# Default behavior of `cloak obfuscate` (transformed copy for sharing).
+# ---------------------------------------------------------------------------
+obfuscate_defaults:
+  rename_private: true
+  rename_public_api: false
+  encode_strings: false        # opt-in only — strings are often SQL/log keys
+  strip_docstrings: false
+  profile: standard            # or "aggressive"

@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cloak"
+version = "0.0.1"
+description = "Local CLI for safer LLM workflows: redact code before pasting, generate verified obfuscated copies, enforce policy from your repo."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+authors = [
+    { name = "CLOAK contributors" },
+]
+keywords = ["llm", "ai", "security", "privacy", "redaction", "obfuscation", "shadow-ai", "governance", "developer-tools"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "typer>=0.12",
+    "pyyaml>=6.0",
+    "pathspec>=0.12",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.6",
+    "mypy>=1.10",
+    "types-pyyaml",
+]
+
+[project.scripts]
+cloak = "cloak.cli:app"
+
+[project.urls]
+Homepage = "https://github.com/newtophilly/cloak"
+Repository = "https://github.com/newtophilly/cloak"
+Issues = "https://github.com/newtophilly/cloak/issues"
+Documentation = "https://github.com/newtophilly/cloak/tree/main/docs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cloak"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["docs", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+files = ["src/cloak"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
