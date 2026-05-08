@@ -1,8 +1,7 @@
-"""Smoke tests for the Phase 1 CLI scaffold.
+"""Smoke tests for the CLI surface (Phases 1+2).
 
-These verify the package wires correctly: subcommands exist, the policy loader runs,
-the file walker walks, JSON output is parseable. Real detection / redaction logic is
-tested in later phases as it lands.
+Covers: version, help, scan (clean + with findings + with policy custom rules + with .cloakignore),
+JSON contract, exit codes. Phase-3+ commands still in scaffold mode are tested for skeleton output.
 """
 
 import json
@@ -37,35 +36,77 @@ def test_help_lists_subcommands() -> None:
     assert "obfuscate" in result.stdout
 
 
-def test_scan_skeleton(tmp_path: Path) -> None:
+def test_scan_clean_repo_exits_0(tmp_path: Path) -> None:
     repo = _make_sample_repo(tmp_path)
     result = runner.invoke(app, ["scan", str(repo)])
     assert result.exit_code == 0
-    assert "scaffold" in result.stdout.lower()
-    assert "files found" in result.stdout.lower()
+    assert "clean" in result.stdout.lower()
 
 
-def test_context_skeleton(tmp_path: Path) -> None:
+def test_scan_finds_aws_key_and_exits_1(tmp_path: Path) -> None:
     repo = _make_sample_repo(tmp_path)
-    result = runner.invoke(app, ["context", str(repo)])
-    assert result.exit_code == 0
+    (repo / "leaky.py").write_text('# example creds\nAWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE"\n')
+    result = runner.invoke(app, ["scan", str(repo), "--json"])
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["status"] == "findings"
+    assert len(payload["findings"]) >= 1
+    finding = payload["findings"][0]
+    assert finding["severity"] == "high"
+    assert finding["file"].endswith("leaky.py")
+    assert finding["rule_id"].startswith("detect-secrets/")
+    # Critically: the raw secret must NEVER appear in output.
+    assert "AKIAIOSFODNN7EXAMPLE" not in result.stdout
+    assert "*" in finding["redacted_preview"]
 
 
-def test_obfuscate_skeleton(tmp_path: Path) -> None:
+def test_scan_applies_policy_custom_rules(tmp_path: Path) -> None:
     repo = _make_sample_repo(tmp_path)
-    out = tmp_path / "out"
-    result = runner.invoke(app, ["obfuscate", str(repo), "--out", str(out)])
+    (repo / "config.py").write_text('CUSTOMER = "CUST-XYZ-123456"\n')
+    (repo / ".cloakpolicy").write_text(
+        "version: 1\n"
+        "secret_rules:\n"
+        "  - id: customer_id_pattern\n"
+        "    pattern: 'CUST-[A-Z]{3}-\\d{6}'\n"
+        "    severity: medium\n"
+    )
+    result = runner.invoke(app, ["scan", str(repo), "--json"])
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    rule_ids = [f["rule_id"] for f in payload["findings"]]
+    assert "policy/customer_id_pattern" in rule_ids
+    customer_finding = next(
+        f for f in payload["findings"] if f["rule_id"].endswith("customer_id_pattern")
+    )
+    assert customer_finding["severity"] == "medium"
+    # Original raw match should not be in output.
+    assert "CUST-XYZ-123456" not in result.stdout
+
+
+def test_scan_terminal_clean_mode(tmp_path: Path) -> None:
+    repo = _make_sample_repo(tmp_path)
+    result = runner.invoke(app, ["scan", str(repo)])
     assert result.exit_code == 0
+    assert "Clean" in result.stdout
 
 
-def test_json_output_is_valid(tmp_path: Path) -> None:
+def test_scan_terminal_findings_mode(tmp_path: Path) -> None:
+    repo = _make_sample_repo(tmp_path)
+    (repo / "leaky.py").write_text('AWS_ACCESS_KEY_ID = "AKIAIOSFODNN7EXAMPLE"\n')
+    result = runner.invoke(app, ["scan", str(repo)])
+    assert result.exit_code == 1
+    assert "AKIAIOSFODNN7EXAMPLE" not in result.stdout
+    assert "high" in result.stdout.lower()
+
+
+def test_scan_json_clean(tmp_path: Path) -> None:
     repo = _make_sample_repo(tmp_path)
     result = runner.invoke(app, ["scan", str(repo), "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["command"] == "scan"
-    assert payload["status"] == "scaffold-only"
-    assert payload["files_discovered"] >= 1
+    assert payload["status"] == "ok"
+    assert payload["findings"] == []
 
 
 def test_policy_loads_when_present(tmp_path: Path) -> None:
@@ -85,12 +126,23 @@ def test_cloakignore_excludes_files(tmp_path: Path) -> None:
     result = runner.invoke(app, ["scan", str(repo), "--json"])
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    # sample.py + README.md + .cloakignore = 3; secret.txt should be excluded.
-    discovered = int(payload["files_discovered"])
-    assert discovered >= 2  # at minimum sample.py + README.md
-    # Verify by hand: secret.txt should not appear when we walk ourselves.
+    # secret.txt should be excluded; sample.py + README.md still discovered.
+    assert int(payload["files_scanned"]) >= 2
     from cloak.filesystem import walk_repo
     from cloak.policy import Policy
 
     files = [p.name for p in walk_repo(repo, Policy())]
     assert "secret.txt" not in files
+
+
+def test_context_skeleton(tmp_path: Path) -> None:
+    repo = _make_sample_repo(tmp_path)
+    result = runner.invoke(app, ["context", str(repo)])
+    assert result.exit_code == 0
+
+
+def test_obfuscate_skeleton(tmp_path: Path) -> None:
+    repo = _make_sample_repo(tmp_path)
+    out = tmp_path / "out"
+    result = runner.invoke(app, ["obfuscate", str(repo), "--out", str(out)])
+    assert result.exit_code == 0

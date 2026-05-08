@@ -32,6 +32,7 @@ dependencies = [
     "pyyaml>=6.0",
     "pathspec>=0.12",
     "rich>=13.0",
+    "detect-secrets>=1.5",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +69,10 @@ ignore = []
 python_version = "3.11"
 strict = true
 files = ["src/cloak"]
+
+[[tool.mypy.overrides]]
+module = ["detect_secrets", "detect_secrets.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

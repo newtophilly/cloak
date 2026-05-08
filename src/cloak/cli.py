@@ -1,8 +1,4 @@
-"""CLOAK CLI entry point.
-
-Phase 1 wires the package layout, subcommand structure, policy loading, and file walking.
-The detection / redaction / obfuscation logic itself arrives in Phases 2-5.
-"""
+"""CLOAK CLI entry point."""
 
 import json
 from pathlib import Path
@@ -10,10 +6,14 @@ from typing import Annotated
 
 import typer
 from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 from cloak import __version__
 from cloak.filesystem import walk_repo
 from cloak.policy import Policy, find_policy, load_policy
+from cloak.scan.scanner import Finding
+from cloak.scan.scanner import scan as run_scan
 
 app = typer.Typer(
     name="cloak",
@@ -58,10 +58,22 @@ def scan(
         typer.Option("--json", help="Emit JSON instead of human-readable output."),
     ] = False,
 ) -> None:
-    """Find secrets and proprietary markers in code (Phase 2 — not yet implemented)."""
+    """Find secrets and proprietary markers in code.
+
+    Wraps detect-secrets and layers in policy.secret_rules. Raw secrets are never printed —
+    only redacted previews. Exits 1 if findings exist, 0 if clean.
+    """
     policy = load_policy(policy_path or find_policy(path))
+    repo_root = path.resolve() if path.is_dir() else path.resolve().parent
     files = list(walk_repo(path, policy))
-    _emit_skeleton_status("scan", policy, files, json_out=json_out)
+    findings = run_scan(files, policy, repo_root=repo_root)
+
+    if json_out:
+        _emit_scan_json(policy, files, findings)
+    else:
+        _emit_scan_terminal(policy, files, findings)
+
+    raise typer.Exit(code=1 if findings else 0)
 
 
 @app.command()
@@ -129,6 +141,54 @@ def obfuscate(
     _emit_skeleton_status("obfuscate", policy, files, json_out=json_out)
 
 
+def _emit_scan_json(policy: Policy, files: list[Path], findings: list[Finding]) -> None:
+    payload = {
+        "command": "scan",
+        "status": "ok" if not findings else "findings",
+        "files_scanned": len(files),
+        "policy_loaded_from": str(policy.source) if policy.source else None,
+        "policy_version": policy.version,
+        "findings": [f.to_dict() for f in findings],
+    }
+    print(json.dumps(payload, indent=2))
+
+
+def _emit_scan_terminal(policy: Policy, files: list[Path], findings: list[Finding]) -> None:
+    if not findings:
+        console.print(
+            Panel.fit(
+                f"[bold green]✓ Clean — {len(files)} files scanned, 0 findings[/bold green]",
+                border_style="green",
+                title="cloak scan",
+            )
+        )
+        if not policy.source:
+            console.print("  [dim]no .cloakpolicy found; default scanner rules applied[/dim]")
+        return
+
+    table = Table(title=f"cloak scan — {len(findings)} finding(s)", header_style="bold red")
+    table.add_column("severity", style="bold")
+    table.add_column("file")
+    table.add_column("line", justify="right")
+    table.add_column("rule", style="dim")
+    table.add_column("preview")
+    for f in findings:
+        sev_style = {"high": "red", "medium": "yellow", "low": "cyan"}.get(f.severity, "white")
+        table.add_row(
+            f"[{sev_style}]{f.severity}[/{sev_style}]",
+            f.file,
+            str(f.line),
+            f.rule_id,
+            f.redacted_preview,
+        )
+    console.print(table)
+    console.print(
+        f"\n  [dim]{len(files)} files scanned • "
+        f"policy: {policy.source or 'defaults'}[/dim]\n"
+        f"  [yellow]Action:[/yellow] rotate any real credentials and remove from source."
+    )
+
+
 def _emit_skeleton_status(
     command: str,
     policy: Policy,
@@ -136,7 +196,7 @@ def _emit_skeleton_status(
     *,
     json_out: bool,
 ) -> None:
-    """Phase 1 placeholder output: prove the skeleton wired correctly without faking results."""
+    """Placeholder output for not-yet-implemented commands."""
     if json_out:
         payload = {
             "command": command,
@@ -144,14 +204,12 @@ def _emit_skeleton_status(
             "policy_loaded_from": str(policy.source) if policy.source else None,
             "policy_version": policy.version,
             "files_discovered": len(files),
-            "implementation_status": (
-                "Phase 1 — scaffolding only. Real logic arrives in a later phase."
-            ),
+            "implementation_status": ("Scaffolding only — real logic arrives in a later phase."),
         }
         print(json.dumps(payload, indent=2))
         return
 
-    console.print(f"[bold cyan]cloak {command}[/bold cyan]  [dim](Phase 1 scaffold)[/dim]")
+    console.print(f"[bold cyan]cloak {command}[/bold cyan]  [dim](scaffold)[/dim]")
     console.print()
     if policy.source:
         console.print(f"  policy:        {policy.source}")
