@@ -17,6 +17,7 @@ import ast
 from pathlib import Path
 
 from cloak import __version__
+from cloak.context.js_redactor import language_for_extension, transform_js_like_source
 from cloak.policy import Policy
 
 _ENUM_BASE_NAMES = {"Enum", "IntEnum", "StrEnum", "Flag", "IntFlag"}
@@ -39,10 +40,20 @@ def generate(
 
     sections: list[str] = [_header(policy, strict=strict)]
 
-    py_files = [p for p in paths if p.suffix == ".py" and p.is_file()]
-    other_files = [p for p in paths if p.is_file() and p.suffix != ".py"]
+    py_files: list[Path] = []
+    js_like_files: list[Path] = []
+    unsupported_files: list[Path] = []
+    for p in paths:
+        if not p.is_file():
+            continue
+        if p.suffix == ".py":
+            py_files.append(p)
+        elif language_for_extension(p.suffix) is not None:
+            js_like_files.append(p)
+        else:
+            unsupported_files.append(p)
 
-    sections.append(_file_tree(py_files + other_files, repo_root))
+    sections.append(_file_tree(py_files + js_like_files + unsupported_files, repo_root))
 
     for path in py_files:
         sections.append(
@@ -54,8 +65,11 @@ def generate(
             )
         )
 
-    if other_files:
-        sections.append(_unsupported_files_note(other_files, repo_root))
+    for path in js_like_files:
+        sections.append(_js_like_section(path, repo_root=repo_root))
+
+    if unsupported_files:
+        sections.append(_unsupported_files_note(unsupported_files, repo_root))
 
     return "\n\n".join(sections) + "\n"
 
@@ -72,9 +86,10 @@ def _header(policy: Policy, *, strict: bool) -> str:
         f"policy: {policy_src}; strict: {str(strict).lower()} -->\n"
         f"# Safe context\n\n"
         f"This is a redacted view of the source, suitable for sharing with an LLM. "
-        f"Function and method bodies are replaced with `...`. "
-        f"Module-level constants holding dict/list/set/tuple literals are redacted. "
-        f"Imports, class shapes, and signatures are preserved."
+        f"Function and method bodies are replaced "
+        f"(with `...` in Python, `/* [REDACTED BY CLOAK] */` in JS/TS). "
+        f"Module-level UPPER_SNAKE_CASE constants holding object/array/dict literals "
+        f"are redacted. Imports, class shapes, and signatures are preserved."
         f"{strict_note}"
     )
 
@@ -111,13 +126,29 @@ def _python_section(
     return f"## `{rel}`\n\n```python\n{ast.unparse(redacted)}\n```"
 
 
+def _js_like_section(path: Path, *, repo_root: Path) -> str:
+    rel = _safe_rel(path, repo_root)
+    kind = language_for_extension(path.suffix)
+    if kind is None:  # pragma: no cover — caller already filtered.
+        return f"## `{rel}`\n\n_(unsupported language)_"
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
+        return f"## `{rel}`\n\n_(unreadable: {e})_"
+
+    redacted = transform_js_like_source(text, kind)
+    fence_lang = (
+        "tsx" if kind == "tsx" else ("typescript" if kind == "typescript" else "javascript")
+    )
+    return f"## `{rel}`\n\n```{fence_lang}\n{redacted}\n```"
+
+
 def _unsupported_files_note(files: list[Path], repo_root: Path) -> str:
     rels = sorted(_safe_rel(f, repo_root) for f in files)
     items = "\n".join(f"- `{r}`" for r in rels)
     return (
         "## Files not parsed\n\n"
-        "These files were discovered but are not yet supported by `cloak context` "
-        "(JS/TS arrives in Phase 3.5):\n\n"
+        "These files were discovered but are not currently supported by `cloak context`:\n\n"
         f"{items}"
     )
 

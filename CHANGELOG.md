@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-08
+
+### Added
+- Phase 3.5: `cloak context` now redacts JavaScript and TypeScript via tree-sitter. Supported file extensions: `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.tsx`. Function declarations, method definitions, function expressions, generator functions, and arrow functions (block- and expression-bodied) all have their bodies redacted with `/* [REDACTED BY CLOAK] */`. Module-level UPPER_SNAKE_CASE `const`/`let`/`var` declarations holding object or array literals are redacted (the same "proprietary tables" pattern used for Python). TypeScript `interface` and `type alias` declarations are preserved (type shapes carry no logic). Output is byte-spliced into the original source, so all formatting and comments outside redacted regions are preserved.
+
 ## [0.1.0] - 2026-05-08
 
 First tagged alpha. All three headline commands (`scan`, `context`, `obfuscate`) are functional for Python.

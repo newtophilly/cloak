@@ -139,7 +139,7 @@ CLOAK is designed to be called as a subprocess from other developer tools and AI
 | 1 | CLI scaffold + `.cloakpolicy` loader | ✅ Done |
 | 2 | `cloak scan` (wraps detect-secrets) | ✅ Done |
 | 3 | `cloak context` for Python | ✅ Done |
-| 3.5 | `cloak context` JS/TS via tree-sitter | ⏳ Next |
+| 3.5 | `cloak context` JS/TS via tree-sitter | ✅ Done |
 | 4 | `cloak obfuscate` Python with `--verify` | ✅ Done (v1) |
 | 5 | `cloak obfuscate` JS/TS (javascript-obfuscator) | ⏳ |
 | 6 | `cloak eval` (LLM-prompt-based regression harness) | ⏳ |
