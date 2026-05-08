@@ -110,11 +110,12 @@ CLOAK is designed to be called as a subprocess from other developer tools and AI
 | Phase | What | Status |
 |-------|------|--------|
 | 0 | Validation experiment | ✅ Done — strategy validated, two-tier redaction discovered |
-| 1 | CLI scaffold + `.cloakpolicy` loader | 🚧 In progress |
-| 2 | `cloak scan` (wraps detect-secrets / gitleaks) | ⏳ Next |
-| 3 | `cloak context` (Python + JS/TS via tree-sitter) | ⏳ |
-| 4 | `cloak obfuscate` for Python (libcst) with `--verify` | ⏳ |
-| 5 | `cloak obfuscate` for JS/TS (javascript-obfuscator) | ⏳ |
+| 1 | CLI scaffold + `.cloakpolicy` loader | ✅ Done |
+| 2 | `cloak scan` (wraps detect-secrets) | ✅ Done |
+| 3 | `cloak context` for Python | ✅ Done |
+| 3.5 | `cloak context` JS/TS via tree-sitter | ⏳ Next |
+| 4 | `cloak obfuscate` Python with `--verify` | ✅ Done (v1) |
+| 5 | `cloak obfuscate` JS/TS (javascript-obfuscator) | ⏳ |
 | 6 | `cloak eval` (LLM-prompt-based regression harness) | ⏳ |
 
 ## Contributing

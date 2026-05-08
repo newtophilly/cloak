@@ -12,6 +12,8 @@ from rich.table import Table
 from cloak import __version__
 from cloak.context.generator import generate as run_context
 from cloak.filesystem import walk_repo
+from cloak.obfuscate.runner import ObfuscateError, ObfuscateResult
+from cloak.obfuscate.runner import run_obfuscate as do_obfuscate
 from cloak.policy import Policy, find_policy, load_policy
 from cloak.scan.scanner import Finding
 from cloak.scan.scanner import scan as run_scan
@@ -165,11 +167,92 @@ def obfuscate(
         typer.Option("--json", help="Emit JSON status instead of running obfuscation."),
     ] = False,
 ) -> None:
-    """Produce a verified transformed copy of a repo (Phases 4-5 — not yet implemented)."""
-    del out, verify, profile  # accepted now, wired in Phases 4-5
+    """Produce a transformed copy of a repo, verified against a test command.
+
+    v1 (Python only): renames module-private `_names`, optionally strips docstrings per
+    policy, copies non-Python files unchanged, writes a `cloak-manifest.json` audit trail
+    with source/output sha256 hashes and the rename map. If `--verify` is given, runs the
+    test command in the output dir; on non-zero exit, the operation fails.
+    """
     policy = load_policy(policy_path or find_policy(path))
-    files = list(walk_repo(path, policy))
-    _emit_skeleton_status("obfuscate", policy, files, json_out=json_out)
+
+    try:
+        result = do_obfuscate(
+            path,
+            out,
+            policy,
+            verify_command=verify,
+            profile=profile,
+        )
+    except ObfuscateError as e:
+        if json_out:
+            print(json.dumps({"command": "obfuscate", "status": "error", "error": str(e)}))
+        else:
+            console.print(f"[red]✗ obfuscate failed:[/red] {e}")
+        raise typer.Exit(code=2) from e
+
+    exit_code = 0
+    if verify and result.verify_passed is False:
+        exit_code = 1
+
+    if json_out:
+        _emit_obfuscate_json(policy, result)
+    else:
+        _emit_obfuscate_terminal(policy, result)
+
+    raise typer.Exit(code=exit_code)
+
+
+def _emit_obfuscate_json(policy: Policy, result: ObfuscateResult) -> None:
+    payload = {
+        "command": "obfuscate",
+        "status": ("ok" if result.verify_passed in (True, None) else "verify_failed"),
+        "output_dir": str(result.output_dir),
+        "manifest_path": str(result.manifest_path),
+        "files_copied": result.files_copied,
+        "files_transformed": result.files_transformed,
+        "rename_count": len(result.rename_map),
+        "policy_loaded_from": str(policy.source) if policy.source else None,
+        "verify_command": result.verify_command,
+        "verify_passed": result.verify_passed,
+    }
+    print(json.dumps(payload, indent=2))
+
+
+def _emit_obfuscate_terminal(policy: Policy, result: ObfuscateResult) -> None:
+    if result.verify_command and result.verify_passed is False:
+        console.print(
+            Panel.fit(
+                f"[bold red]✗ Verify failed[/bold red]\n"
+                f"command: {result.verify_command}\n\n"
+                f"{(result.verify_output or '').rstrip()[:2000]}",
+                border_style="red",
+                title="cloak obfuscate",
+            )
+        )
+        console.print(
+            "  [yellow]Output written, but verification failed — do not ship this bundle.[/yellow]"
+        )
+        return
+
+    title = "cloak obfuscate"
+    lines = [
+        "[bold green]✓ Obfuscated[/bold green]",
+        f"output:        {result.output_dir}",
+        f"manifest:      {result.manifest_path}",
+        f"transformed:   {result.files_transformed} python files",
+        f"copied:        {result.files_copied} other files",
+        f"renames:       {len(result.rename_map)} module-private identifiers",
+    ]
+    if result.verify_command:
+        lines.append(f"verify:        [green]passed[/green] ({result.verify_command})")
+    elif result.verify_command is None:
+        lines.append(
+            'verify:        [yellow]not run[/yellow] — pass --verify "pytest" to gate the output'
+        )
+    console.print(Panel.fit("\n".join(lines), border_style="green", title=title))
+    if not policy.source:
+        console.print("  [dim]no .cloakpolicy found; default obfuscate rules applied[/dim]")
 
 
 def _copy_to_clipboard(text: str) -> bool:
