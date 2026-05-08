@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from cloak import __version__
+from cloak.context.generator import generate as run_context
 from cloak.filesystem import walk_repo
 from cloak.policy import Policy, find_policy, load_policy
 from cloak.scan.scanner import Finding
@@ -103,11 +104,41 @@ def context(
         typer.Option("--json", help="Emit JSON status instead of generating context."),
     ] = False,
 ) -> None:
-    """Generate redacted markdown safe to paste into an LLM (Phase 3 — not yet implemented)."""
-    del out, copy, strict  # accepted now, wired in Phase 3
+    """Generate redacted markdown safe to paste into an LLM.
+
+    Function bodies are replaced with `...`; module-level UPPER_SNAKE constants holding
+    dict/list/set/tuple literals are redacted. `--strict` aliases enum values and strips
+    docstrings. Output goes to stdout, `--out`, and/or `--copy` (clipboard) — flags compose.
+    """
     policy = load_policy(policy_path or find_policy(path))
+    repo_root = path.resolve() if path.is_dir() else path.resolve().parent
     files = list(walk_repo(path, policy))
-    _emit_skeleton_status("context", policy, files, json_out=json_out)
+
+    if json_out:
+        _emit_context_status_json(policy, files, strict=strict)
+        return
+
+    markdown = run_context(files, policy, strict=strict, repo_root=repo_root)
+
+    wrote_anywhere = False
+    if out is not None:
+        out.write_text(markdown, encoding="utf-8")
+        console.print(f"[green]✓[/green] wrote {len(markdown):,} chars to {out}")
+        wrote_anywhere = True
+
+    if copy:
+        if _copy_to_clipboard(markdown):
+            console.print(f"[green]✓[/green] copied {len(markdown):,} chars to clipboard")
+            wrote_anywhere = True
+        else:
+            console.print(
+                "[yellow]![/yellow] no clipboard tool found "
+                "(install pbcopy / xclip / wl-copy / clip.exe)"
+            )
+
+    if not wrote_anywhere:
+        # Default: print to stdout (use plain print to avoid rich wrapping markdown).
+        print(markdown)
 
 
 @app.command()
@@ -139,6 +170,43 @@ def obfuscate(
     policy = load_policy(policy_path or find_policy(path))
     files = list(walk_repo(path, policy))
     _emit_skeleton_status("obfuscate", policy, files, json_out=json_out)
+
+
+def _copy_to_clipboard(text: str) -> bool:
+    """Best-effort copy to system clipboard. Returns True on success."""
+    import shutil
+    import subprocess
+
+    candidates: list[list[str]] = []
+    if shutil.which("pbcopy"):  # macOS
+        candidates.append(["pbcopy"])
+    if shutil.which("wl-copy"):  # Wayland
+        candidates.append(["wl-copy"])
+    if shutil.which("xclip"):  # X11
+        candidates.append(["xclip", "-selection", "clipboard"])
+    if shutil.which("clip.exe"):  # Windows
+        candidates.append(["clip.exe"])
+
+    for cmd in candidates:
+        try:
+            subprocess.run(cmd, input=text, text=True, check=True, timeout=5)
+            return True
+        except (subprocess.SubprocessError, OSError):
+            continue
+    return False
+
+
+def _emit_context_status_json(policy: Policy, files: list[Path], *, strict: bool) -> None:
+    payload = {
+        "command": "context",
+        "status": "ok",
+        "files_discovered": len(files),
+        "policy_loaded_from": str(policy.source) if policy.source else None,
+        "policy_version": policy.version,
+        "strict": strict,
+        "implementation_status": "Phase 3 — Python supported; JS/TS in Phase 3.5.",
+    }
+    print(json.dumps(payload, indent=2))
 
 
 def _emit_scan_json(policy: Policy, files: list[Path], findings: list[Finding]) -> None:
