@@ -6,6 +6,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-05-08
+
+### Added
+- `cloak policy init` — interactive wizard that scaffolds a starter `.cloakpolicy` for the current project. Detects layout (Python via `pyproject.toml`/`setup.py`/top-level `.py` files; Node via `package.json`/lockfiles; TypeScript via `tsconfig.json` or top-level `.ts` files) and common source dirs (`src/`, `lib/`, `app/`, `packages/`). Shows a preview panel, asks once for confirmation, writes the file. Supports `--yes` for non-interactive use, `--force` to overwrite existing, `--out` for a custom path. Refuses to overwrite without `--force`.
+- New CLI subcommand group `cloak policy ...` to host policy-management subcommands (more arriving in subsequent releases — e.g., `cloak policy preview`).
+
 ## [0.1.1] - 2026-05-08
 
 ### Added

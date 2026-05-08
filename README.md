@@ -56,11 +56,14 @@ cd cloak
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 
-# Run it
-cloak --help
-cloak scan ./your-repo
-cloak context ./your-repo --copy        # safe redacted markdown to clipboard
-cloak obfuscate ./your-repo --out ./your-repo.cloaked --verify "pytest"
+# First-time setup in a repo (one prompt, ~10 seconds):
+cd your-repo
+cloak policy init        # detects Python/JS/TS, scaffolds .cloakpolicy
+
+# Then:
+cloak scan .
+cloak context . --copy                            # safe redacted markdown to clipboard
+cloak obfuscate ./src --out ./src.cloaked --verify "pytest"
 ```
 
 ### A real example

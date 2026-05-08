@@ -15,6 +15,7 @@ from cloak.filesystem import walk_repo
 from cloak.obfuscate.runner import ObfuscateError, ObfuscateResult
 from cloak.obfuscate.runner import run_obfuscate as do_obfuscate
 from cloak.policy import Policy, find_policy, load_policy
+from cloak.policy_init import build_starter_policy, detect_project
 from cloak.scan.scanner import Finding
 from cloak.scan.scanner import scan as run_scan
 
@@ -24,6 +25,12 @@ app = typer.Typer(
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
+policy_app = typer.Typer(
+    name="policy",
+    help="Manage .cloakpolicy files (init, etc.).",
+    no_args_is_help=True,
+)
+app.add_typer(policy_app, name="policy")
 console = Console()
 
 
@@ -373,6 +380,54 @@ def _emit_skeleton_status(
         f"`cloak {command}` arrives in a later phase.\n"
         "  See [link=https://github.com/newtophilly/cloak/blob/main/docs/BUILD_PLAN.md]"
         "docs/BUILD_PLAN.md[/link] for the roadmap."
+    )
+
+
+@policy_app.command("init")
+def policy_init(
+    out: Annotated[
+        Path,
+        typer.Option("--out", help="Output path. Default: ./.cloakpolicy"),
+    ] = Path(".cloakpolicy"),
+    yes: Annotated[
+        bool,
+        typer.Option("--yes", "-y", help="Write without prompting (skip confirmation)."),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Overwrite an existing .cloakpolicy."),
+    ] = False,
+) -> None:
+    """Scaffold a starter `.cloakpolicy` for the current project.
+
+    Detects the project layout (Python, JS, TS, mixed; common src/ lib/ app/ packages/
+    directories) and proposes sensible defaults. Refuses to overwrite an existing file
+    unless `--force` is passed.
+    """
+    if out.exists() and not force:
+        console.print(
+            f"[red]✗[/red] {out} already exists. Pass [bold]--force[/bold] to overwrite, "
+            "or open the file and edit it directly."
+        )
+        raise typer.Exit(code=2)
+
+    detection = detect_project(Path.cwd())
+    policy_yaml = build_starter_policy(detection)
+
+    if not yes:
+        console.print(Panel.fit(policy_yaml, title=f"Proposed {out}", border_style="cyan"))
+        console.print(f"\n  Detected project type: [bold]{detection.label}[/bold]")
+        if detection.src_dirs:
+            console.print(f"  Detected source dirs: [bold]{', '.join(detection.src_dirs)}[/bold]")
+        if not typer.confirm(f"\nWrite this to {out}?", default=True):
+            console.print("[yellow]Aborted.[/yellow] No file written.")
+            raise typer.Exit(code=0)
+
+    out.write_text(policy_yaml, encoding="utf-8")
+    console.print(
+        f"[green]✓[/green] wrote {out}\n"
+        "  Review it, edit as needed, then commit. Whoever can merge this file controls "
+        "CLOAK policy for this repo."
     )
 
 
