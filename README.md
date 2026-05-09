@@ -7,8 +7,10 @@
 
 > Local CLI for safer LLM workflows. Redact code before pasting into ChatGPT or Claude. Generate verified obfuscated copies for sharing. Enforce policy from your repo.
 
-> [!IMPORTANT]
-> CLOAK is **alpha software** in active development. The three headline commands (`scan`, `context`, `obfuscate`) all work for both Python and JS/TS today; APIs and the `.cloakpolicy` format may still change before 1.0. See [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) for what's shipped, the known v1 limitations, and what's not started.
+![demo](docs/demo.gif)
+
+> [!NOTE]
+> CLOAK is at **v0.3** — the three headline commands (`scan`, `context`, `obfuscate`) work for both Python and JS/TS, plus `diff-context` for previewing redactions. The `.cloakpolicy` format and CLI flags may still change before 1.0. See [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) for what's shipped, the known v1 limitations, and what's not started.
 
 ## What CLOAK is
 
@@ -25,6 +27,8 @@ cloak obfuscate ./repo --out ./repo.cloaked --verify "pytest"
 - **`cloak scan`** — Find secrets and proprietary markers in code (wraps `detect-secrets` and layers your policy's custom regex rules on top).
 - **`cloak context`** — Generate a redacted markdown view of a repo (function bodies hidden, signatures + docstrings kept) safe to paste into an LLM for architectural feedback. Use `--strict` to also alias enums and paraphrase docstrings.
 - **`cloak obfuscate`** — Produce a transformed copy of your code that **still passes your test suite**, for sharing with contractors or third parties. The `--verify` flag is the differentiator: if your tests don't pass against the transformed copy, the operation fails.
+
+There's also `cloak diff-context` — a dry-run that previews exactly what `cloak context` would redact (function bodies, proprietary tables, docstrings under `--strict`) and the byte reduction, without writing anything. Run it before you trust the transformation.
 
 ## Why this exists
 

@@ -1,6 +1,6 @@
 # Contributing to CLOAK
 
-Thanks for considering a contribution. CLOAK is an alpha-stage open-source project; the easiest ways to help are issues, small focused PRs, and feedback on the build plan.
+Thanks for considering a contribution. CLOAK is an early-stage open-source project (pre-1.0); the easiest ways to help are issues, small focused PRs, and feedback on the build plan.
 
 ## Development setup
 

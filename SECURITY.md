@@ -1,6 +1,6 @@
 # Security policy
 
-CLOAK is alpha software, maintained by a single person. The latest release on PyPI (`cloak-cli`) is the one that gets security attention; older releases will not get backports.
+CLOAK is early-stage software (pre-1.0), maintained by a single person. The latest release on PyPI (`cloak-cli`) is the one that gets security attention; older releases will not get backports.
 
 ## Reporting a vulnerability
 

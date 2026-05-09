@@ -10,6 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from cloak import __version__
+from cloak.context.diff import DiffSummary, diff_context
 from cloak.context.generator import generate as run_context
 from cloak.filesystem import walk_repo
 from cloak.obfuscate.runner import ObfuscateError, ObfuscateResult
@@ -148,6 +149,42 @@ def context(
     if not wrote_anywhere:
         # Default: print to stdout (use plain print to avoid rich wrapping markdown).
         print(markdown)
+
+
+@app.command(name="diff-context")
+def diff_context_cmd(
+    path: Annotated[Path, typer.Argument(help="Path to inspect.")],
+    strict: Annotated[
+        bool,
+        typer.Option(
+            "--strict",
+            help="Show what `--strict` mode would redact (alias enums, strip docstrings).",
+        ),
+    ] = False,
+    policy_path: Annotated[
+        Path | None,
+        typer.Option("--policy", help="Path to .cloakpolicy file."),
+    ] = None,
+    json_out: Annotated[
+        bool,
+        typer.Option("--json", help="Emit JSON instead of human-readable output."),
+    ] = False,
+) -> None:
+    """Preview what `cloak context` would redact, with per-file stats.
+
+    Shows function bodies that would be hidden, UPPER_SNAKE constants that would be
+    redacted, docstrings that would be stripped (in `--strict`), and the byte reduction.
+    Doesn't write any output — this is a dry-run for trust.
+    """
+    policy = load_policy(policy_path or find_policy(path))
+    repo_root = path.resolve() if path.is_dir() else path.resolve().parent
+    files = list(walk_repo(path, policy))
+    summary = diff_context(files, policy, strict=strict, repo_root=repo_root)
+
+    if json_out:
+        _emit_diff_context_json(policy, summary, strict=strict)
+    else:
+        _emit_diff_context_terminal(policy, summary, strict=strict)
 
 
 @app.command()
@@ -345,6 +382,93 @@ def _emit_scan_terminal(policy: Policy, files: list[Path], findings: list[Findin
         f"policy: {policy.source or 'defaults'}[/dim]\n"
         f"  [yellow]Action:[/yellow] rotate any real credentials and remove from source."
     )
+
+
+def _emit_diff_context_json(policy: Policy, summary: DiffSummary, *, strict: bool) -> None:
+    payload = {
+        "command": "diff-context",
+        "status": "ok",
+        "strict": strict,
+        "policy_loaded_from": str(policy.source) if policy.source else None,
+        "policy_version": policy.version,
+        "totals": {
+            "files": len(summary.files),
+            "bytes_before": summary.bytes_before,
+            "bytes_after": summary.bytes_after,
+            "reduction_pct": round(summary.reduction_pct, 1),
+            "function_bodies_redacted": summary.function_bodies_redacted,
+            "tables_redacted": summary.tables_redacted,
+            "docstrings_stripped": summary.docstrings_stripped,
+            "enum_classes_aliased": summary.enum_classes_aliased,
+        },
+        "files": [f.to_dict() for f in summary.files],
+    }
+    print(json.dumps(payload, indent=2))
+
+
+def _emit_diff_context_terminal(policy: Policy, summary: DiffSummary, *, strict: bool) -> None:
+    if not summary.files:
+        console.print(
+            Panel.fit(
+                "[yellow]No supported source files found.[/yellow]",
+                border_style="yellow",
+                title="cloak diff-context",
+            )
+        )
+        return
+
+    title = "cloak diff-context" + (" (--strict)" if strict else "")
+    table = Table(title=title, header_style="bold cyan")
+    table.add_column("file")
+    table.add_column("lang", style="dim")
+    table.add_column("before", justify="right")
+    table.add_column("after", justify="right")
+    table.add_column("Δ%", justify="right")
+    table.add_column("fn bodies", justify="right")
+    table.add_column("tables", justify="right")
+    if strict:
+        table.add_column("docstrings", justify="right")
+        table.add_column("enums", justify="right")
+
+    for fd in summary.files:
+        if fd.error:
+            row = [fd.rel, fd.language, "—", "—", f"[red]{fd.error}[/red]", "—", "—"]
+            if strict:
+                row += ["—", "—"]
+            table.add_row(*row)
+            continue
+        row = [
+            fd.rel,
+            fd.language,
+            f"{fd.bytes_before:,}",
+            f"{fd.bytes_after:,}",
+            f"[green]{fd.reduction_pct:.0f}%[/green]" if fd.reduction_pct > 0 else "0%",
+            str(fd.function_bodies_redacted),
+            str(fd.tables_redacted),
+        ]
+        if strict:
+            row.append(str(fd.docstrings_stripped))
+            row.append(str(fd.enum_classes_aliased))
+        table.add_row(*row)
+
+    console.print(table)
+    file_word = "file" if len(summary.files) == 1 else "files"
+    summary_lines = [
+        f"  [bold]{len(summary.files)} {file_word}[/bold] • "
+        f"{summary.bytes_before:,} → {summary.bytes_after:,} bytes "
+        f"([green]{summary.reduction_pct:.0f}% reduction[/green])",
+        f"  redacted: [bold]{summary.function_bodies_redacted}[/bold] function bodies, "
+        f"[bold]{summary.tables_redacted}[/bold] proprietary tables",
+    ]
+    if strict:
+        summary_lines.append(
+            f"  --strict also strips: [bold]{summary.docstrings_stripped}[/bold] docstrings, "
+            f"aliases [bold]{summary.enum_classes_aliased}[/bold] enum classes"
+        )
+    summary_lines.append(
+        "  [dim]No files written. Run `cloak context …` to actually emit the redacted view.[/dim]"
+    )
+    console.print("\n".join(summary_lines))
 
 
 def _emit_skeleton_status(

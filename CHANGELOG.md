@@ -4,6 +4,11 @@ Notable changes by release. Format follows [Keep a Changelog](https://keepachang
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-08
+
+- Added `cloak diff-context` — preview what `cloak context` would redact, with per-file counts of function bodies, proprietary tables, docstrings stripped (under `--strict`), and byte reduction. No files written; pure dry-run for trust. JSON output supported.
+- README softened the pre-release framing — version numbers (0.x) already signal early-stage; "alpha software" copy was overcorrecting.
+
 ## [0.2.1] — 2026-05-08
 
 - Added `.pre-commit-hooks.yaml` so teams can drop `cloak-scan` into their `.pre-commit-config.yaml` and have it gate commits.
