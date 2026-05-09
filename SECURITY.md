@@ -1,43 +1,32 @@
 # Security policy
 
-## Supported versions
-
-CLOAK is alpha software. The latest published `0.x.y` release on PyPI is the only supported version. Older releases will not receive security backports.
-
-| Version | Supported          |
-|---------|--------------------|
-| 0.2.x   | :white_check_mark: |
-| < 0.2   | :x:                |
+CLOAK is alpha software, maintained by a single person. The latest release on PyPI (`cloak-cli`) is the one that gets security attention; older releases will not get backports.
 
 ## Reporting a vulnerability
 
-**Please do not file public GitHub issues for security vulnerabilities.** Open a private security advisory at https://github.com/newtophilly/cloak/security/advisories/new with:
+**Please don't file public GitHub issues for security vulnerabilities.** Open a private security advisory at https://github.com/newtophilly/cloak/security/advisories/new and include:
 
-- A clear description of the vulnerability and its impact.
+- What the vulnerability is and what it lets an attacker do.
 - Reproduction steps or a minimal proof-of-concept.
-- Affected versions, if you can identify them.
-- Any suggested mitigations.
+- Which version(s) you found it in.
+- Any mitigation you'd suggest.
 
-We aim to acknowledge new advisories within **3 business days** and to release a fix or coordinated disclosure within **30 days** for high-severity issues.
+I'll respond as soon as I can. Realistic expectation: a few days for an acknowledgement, longer for a fix depending on severity and how busy I am. If I'm slow, that's solo-maintainer life — feel free to nudge me on the advisory thread.
 
-## Scope
+## What counts as a vulnerability
 
-In scope:
-- Bugs in CLOAK that cause it to **leak source code that the policy was supposed to redact**, including: secrets that should have been caught by `cloak scan`, function bodies that escape `cloak context` redaction, identifiers that should have been renamed by `cloak obfuscate`.
-- Vulnerabilities in CLOAK's CLI that allow code execution, privilege escalation, or unintended file writes outside the user-supplied output directory.
-- Vulnerabilities in our published distribution: tampering with the PyPI artifact, the GitHub release, or the `cloak-manifest.json` audit trail.
+In scope (these are real bugs and I want to know about them):
 
-Out of scope (not vulnerabilities by CLOAK's design):
-- An LLM successfully reasoning about code from a redacted view. CLOAK is friction tooling, not unbreakable protection. See README "What CLOAK is NOT."
-- An obfuscated copy still being human-readable enough for a motivated reader to understand. Same caveat.
-- Dependency vulnerabilities from upstream packages we use (`detect-secrets`, `tree-sitter`, etc.) — please report those upstream.
+- CLOAK leaks code that the policy was supposed to redact — secrets that `cloak scan` should have caught, function bodies that escape `cloak context` redaction, identifiers that should have been renamed by `cloak obfuscate`.
+- The CLI does something it shouldn't — runs unintended code, writes outside the user-supplied output directory, etc.
+- The published distribution (PyPI artifact, GitHub release, `cloak-manifest.json`) is tampered with or has been compromised.
 
-## Disclosure timeline expectations
+Not in scope (CLOAK doesn't claim to prevent these):
 
-For accepted reports we aim for:
-- Day 0: Acknowledgement.
-- Day 1–7: Initial assessment + severity rating.
-- Day 7–30: Patch developed, tests added, release prepared.
-- Day 30: Coordinated public disclosure (CVE if applicable, GitHub Security Advisory published, release notes updated).
+- An LLM successfully reasoning about a redacted view. CLOAK is friction tooling, not unbreakable protection. See "What CLOAK is NOT" in the README.
+- An obfuscated copy still being human-readable enough for a motivated reader. Same caveat.
+- Vulnerabilities in upstream packages (`detect-secrets`, `tree-sitter`, `typer`, etc.). Report those upstream — but if the upstream bug means CLOAK leaks something, that's in scope here too.
 
-If a fix takes longer than 30 days, we'll coordinate a revised disclosure date with the reporter.
+## Coordinated disclosure
+
+Default: I'd like to fix it privately, ship a release, then publicly disclose. If we agree a public disclosure date, I'll keep to it. If a fix is taking longer than expected, I'll talk to you about extending the embargo rather than letting it slip silently.

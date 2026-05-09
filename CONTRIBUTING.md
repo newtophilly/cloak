@@ -25,7 +25,9 @@ CI will run all three. Please keep them green before opening a PR.
 
 ## What to work on
 
-Open issues are labeled by area (`scan`, `context`, `obfuscate`, `policy`, `cli`) and difficulty. New contributors should look for `good-first-issue`. The roadmap lives in [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — read that first to understand how a piece of work fits.
+Open issues are the obvious starting point if there are any. Beyond that: [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) lists the things that work today, the known v1 limitations, and what's not started — anything in those last two buckets is fair game for a PR.
+
+If you're not sure whether a change is in scope, open an issue describing what you're thinking before sinking time into it. I'd rather discuss the shape of a PR up front than ask for a rewrite after the fact.
 
 ## Honest positioning
 
@@ -33,7 +35,7 @@ CLOAK markets itself as a **governance + friction** tool, not unbreakable protec
 
 ## Reporting security issues
 
-Please do **not** file public issues for security vulnerabilities. Open a private security advisory at https://github.com/newtophilly/cloak/security/advisories/new with details, and we'll respond as quickly as we can.
+Please don't file public GitHub issues for security vulnerabilities. Open a private security advisory at https://github.com/newtophilly/cloak/security/advisories/new — full details in [SECURITY.md](SECURITY.md).
 
 ## Releasing (maintainers)
 

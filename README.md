@@ -8,7 +8,7 @@
 > Local CLI for safer LLM workflows. Redact code before pasting into ChatGPT or Claude. Generate verified obfuscated copies for sharing. Enforce policy from your repo.
 
 > [!IMPORTANT]
-> CLOAK is **alpha software** in active development. APIs and policy format may change before 1.0. The three headline commands (`scan`, `context`, `obfuscate`) are functional for Python; JS/TS support arrives in Phases 3.5 and 5. See [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) for the roadmap.
+> CLOAK is **alpha software** in active development. The three headline commands (`scan`, `context`, `obfuscate`) all work for both Python and JS/TS today; APIs and the `.cloakpolicy` format may still change before 1.0. See [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md) for what's shipped, the known v1 limitations, and what's not started.
 
 ## What CLOAK is
 
@@ -22,7 +22,7 @@ cloak context ./repo --out safe-context.md --copy
 cloak obfuscate ./repo --out ./repo.cloaked --verify "pytest"
 ```
 
-- **`cloak scan`** — Find secrets and proprietary markers in code (wraps `detect-secrets` / `gitleaks` and layers your policy on top).
+- **`cloak scan`** — Find secrets and proprietary markers in code (wraps `detect-secrets` and layers your policy's custom regex rules on top).
 - **`cloak context`** — Generate a redacted markdown view of a repo (function bodies hidden, signatures + docstrings kept) safe to paste into an LLM for architectural feedback. Use `--strict` to also alias enums and paraphrase docstrings.
 - **`cloak obfuscate`** — Produce a transformed copy of your code that **still passes your test suite**, for sharing with contractors or third parties. The `--verify` flag is the differentiator: if your tests don't pass against the transformed copy, the operation fails.
 
@@ -38,7 +38,7 @@ Honest positioning matters in security tooling.
 
 - **Not unbreakable.** A motivated reader (human or LLM) given an obfuscated copy of your code can still extract logic. CLOAK reduces leak surface and creates friction; it does not provide cryptographic protection. Real protection comes from blocking, redacting, encrypting, compiling, or simply never sending the source.
 - **Not a replacement for enterprise DLP.** Network-layer enforcement (Lasso, Polymer, Cyberhaven, Prisma AIRS, etc.) operates at a different layer and is complementary. CLOAK lives in the developer's workflow, not the network egress.
-- **Not a secret scanner from scratch.** `cloak scan` wraps existing battle-tested OSS scanners (`detect-secrets`, `gitleaks`) and layers policy-aware rules on top. The reuse is intentional and disclosed.
+- **Not a secret scanner from scratch.** `cloak scan` wraps `detect-secrets` (Yelp's open-source scanner — years of regex/entropy tuning come for free) and layers your policy's `secret_rules` on top. The reuse is intentional and disclosed.
 - **Not magic for content the LLM has already seen.** Once code is sent, it's sent. CLOAK helps before paste, not after.
 
 ## Quickstart
@@ -103,7 +103,7 @@ Drop `cloak scan` into `.pre-commit-config.yaml` to block commits that introduce
 ```yaml
 repos:
   - repo: https://github.com/newtophilly/cloak
-    rev: v0.2.0
+    rev: v0.2.1
     hooks:
       - id: cloak-scan
 ```
@@ -163,16 +163,11 @@ CLOAK is designed to be called as a subprocess from other developer tools and AI
 
 ## Status
 
-| Phase | What | Status |
-|-------|------|--------|
-| 0 | Validation experiment | ✅ Done — strategy validated, two-tier redaction discovered |
-| 1 | CLI scaffold + `.cloakpolicy` loader | ✅ Done |
-| 2 | `cloak scan` (wraps detect-secrets) | ✅ Done |
-| 3 | `cloak context` for Python | ✅ Done |
-| 3.5 | `cloak context` JS/TS via tree-sitter | ✅ Done |
-| 4 | `cloak obfuscate` Python with `--verify` | ✅ Done (v1) |
-| 5 | `cloak obfuscate` JS/TS via tree-sitter | ✅ Done (v1) |
-| 6 | `cloak eval` (LLM-prompt-based regression harness) | ⏳ |
+What works today: `cloak scan`, `cloak context`, `cloak obfuscate` for both Python and JS/TS, plus `cloak policy init` for first-time setup and pre-commit-hook integration.
+
+What's known to not yet work / has documented v1 limits: cross-file rename in `obfuscate` (per-file only — `--verify` catches breakage), JS/TS shorthand-property and destructuring rename (deliberately skipped to avoid silently changing object shapes), `cloak eval` regression harness (not started).
+
+The full breakdown — what's shipped, the v1 gaps named honestly, and what's not started — lives in [docs/BUILD_PLAN.md](docs/BUILD_PLAN.md).
 
 ## Contributing
 

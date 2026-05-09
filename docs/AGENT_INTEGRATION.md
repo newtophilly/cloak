@@ -1,165 +1,165 @@
-# CLOAK Agent Integration Guide
+# Integrating CLOAK from another tool
 
-> Audience: AI agents (Codex, Claude, custom) and developer tools that call CLOAK as a subprocess.
-> Read this file before invoking CLOAK from another tool. Keep it short, predictable, and forward-compatible.
+> Audience: AI agents (Codex, Claude, custom assistants) and developer tools that call CLOAK as a subprocess. If you're a human user, the [README](../README.md) is what you want.
 
-## What CLOAK is
+CLOAK is a local CLI. It runs cleanly headless: stable JSON output (`--json`), predictable exit codes, no interactive prompts in non-TTY mode. That makes it easy to invoke from other tools without surprises.
 
-CLOAK is a local CLI that helps developers share code with LLMs without leaking proprietary IP or secrets. It exposes three commands — `scan`, `context`, `obfuscate` — that operate on a repo or file under a `.cloakpolicy` checked into the repo.
+## What CLOAK does, in one paragraph
 
-CLOAK is governance and friction tooling, not unbreakable protection. Surface this honestly to the user when relevant.
+A `.cloakpolicy` (YAML) sits at the user's repo root. CLOAK has three commands: `scan` finds secrets and proprietary markers; `context` produces a redacted markdown view of the source that's safe to paste into an LLM; `obfuscate` produces a transformed copy of the code that — if `--verify "<cmd>"` was passed — only succeeds if the user's tests pass against the transformed output. CLOAK is friction tooling, not unbreakable protection — surface that honestly when relevant.
 
-## When you SHOULD call CLOAK
+## When you should call CLOAK
 
-- The user is preparing to send code to an LLM (paste, share, prompt-with-source).
-- The repo contains a `.cloakpolicy` file at any ancestor directory of the target path. CLOAK auto-discovers it; you do not need to find it yourself.
-- The user explicitly asks for "safe paste", "redacted version", "AI-safe context", "obfuscated copy", or anything that maps to those concepts.
-- You are building a context packet (e.g., for `fob pull`) that will leave the user's machine and includes file content from a repo with policy.
-- The user is preparing source for a contractor / third party (use `cloak obfuscate --verify`).
+- The user is preparing to send code to an LLM (paste into chat, build a context packet, share with an assistant).
+- A `.cloakpolicy` file exists at any ancestor directory of the target path. CLOAK finds it automatically; you don't need to.
+- The user explicitly asked for a "safe paste", "redacted version", "AI-safe context", or "obfuscated copy".
+- The user is preparing source for a contractor or third party (use `cloak obfuscate --verify`).
 
 ## When you should NOT call CLOAK
 
-- For files outside the user's working repo or not under their control.
-- The repo has no `.cloakpolicy` AND the user did not explicitly request redaction. Do not surprise users with silent redaction.
-- For pure config files, build artifacts, or non-source assets — defer to the user.
-- When the user has chosen an explicit `--no-cloak` or equivalent escape hatch in your tool. Honor it.
+- For files outside the user's working repo or otherwise not under their control.
+- The repo has no `.cloakpolicy` AND the user did not explicitly ask for redaction. Don't surprise users with silent redaction.
+- For pure config files, build artifacts, or non-source assets.
+- When the user asked for an explicit `--no-cloak` or equivalent escape hatch in your tool. Honor it.
 
-## Detecting CLOAK
+## Detecting CLOAK and installing it
 
 ```bash
 cloak --version
-# Output: "cloak X.Y.Z" on stdout, exit 0
-# If the command is not found, install (see below) or fall back gracefully.
+# Prints "cloak X.Y.Z" on stdout, exit 0. If the command isn't found, install it.
 ```
-
-Minimum supported version for stable agent integration: **0.0.1** (current alpha). Subprocess output formats below are forward-compatible: new fields may be added to JSON payloads, but existing fields will not be removed or change meaning within a major version.
-
-## Installation
 
 ```bash
-# From PyPI (preferred — the package is `cloak-cli`, the CLI binary is still `cloak`):
+# Recommended:
 pip install cloak-cli
+# (The PyPI package name is cloak-cli; the binary on $PATH is `cloak`.)
 
 # From source:
-git clone https://github.com/newtophilly/cloak.git
-cd cloak
-pip install .
-
-# For development:
-pip install -e ".[dev]"
+git clone https://github.com/newtophilly/cloak.git && cd cloak && pip install .
 ```
 
-If installation fails, do not silently skip CLOAK in a workflow that requested it. Surface the error to the user.
+If installation fails, don't silently skip CLOAK in a workflow that explicitly asked for it — surface the error to the user.
 
-## Commands
+## Commands and their JSON contracts
 
-All commands accept `--json` for machine-readable output. Always pass `--json` when calling from another tool.
+Always pass `--json` when invoking from another tool. The text output is for humans and uses Rich panels, tables, and ANSI codes that don't parse cleanly.
 
 ### `cloak scan`
 
-Find secrets and proprietary markers in code.
+Find secrets and proprietary markers.
 
 ```bash
-cloak scan <path> [--policy PATH] [--json]
+cloak scan <path> [--policy <file>] [--json]
 ```
 
-**Status:** Phase 2 — under development. Phase 1 returns scaffold-only output.
-
-**JSON output (Phase 1 scaffold contract; will extend in Phase 2):**
-
-```json
-{
-  "command": "scan",
-  "status": "scaffold-only",
-  "policy_loaded_from": "/abs/path/to/.cloakpolicy" | null,
-  "policy_version": 1,
-  "files_discovered": 12,
-  "implementation_status": "Phase 1 — scaffolding only..."
-}
-```
-
-**Phase 2 contract (additive, forward-compatible):**
+JSON output:
 
 ```json
 {
   "command": "scan",
   "status": "ok",
+  "files_scanned": 12,
+  "policy_loaded_from": "/abs/path/to/.cloakpolicy",
+  "policy_version": 1,
   "findings": [
     {
-      "severity": "high" | "medium" | "low",
+      "severity": "high",
       "file": "src/foo.py",
       "line": 42,
-      "rule_id": "aws_access_key_id",
+      "rule_id": "detect-secrets/AWS Access Key",
       "redacted_preview": "AKIA****************",
-      "suggested_action": "rotate or remove"
+      "suggested_action": "Rotate this credential and remove it from source."
     }
-  ],
-  "files_scanned": 12,
-  "policy_loaded_from": "/abs/path/to/.cloakpolicy" | null
+  ]
 }
 ```
 
-Raw secrets are NEVER printed. Always `redacted_preview`.
+`status` is `"ok"` when there are no findings, `"findings"` when there are. `policy_loaded_from` is `null` if no `.cloakpolicy` was found and defaults are being used. **Raw secrets are never printed — `redacted_preview` is the only secret-derived value that appears in output.**
 
 ### `cloak context`
 
 Generate a redacted markdown view safe to paste into an LLM.
 
 ```bash
-cloak context <path> [--out FILE] [--copy] [--strict] [--policy PATH] [--json]
+cloak context <path> [--out <file>] [--copy] [--strict] [--policy <file>] [--json]
 ```
 
-- `--out FILE`: write to a file (default: stdout).
-- `--copy`: copy result to system clipboard (best-effort, requires `pbcopy`/`xclip`/`clip.exe` on PATH).
-- `--strict`: aggressive redaction — alias enum values, paraphrase docstrings. For sharing with untrusted parties.
-- `--json`: emit status JSON instead of generating context (use this for "is CLOAK available and what would it do" probes).
+- `--out <file>`: write the markdown to a file (default: stdout).
+- `--copy`: also put the result on the system clipboard (uses `pbcopy` / `xclip` / `wl-copy` / `clip.exe` if available).
+- `--strict`: aggressive mode — enum values aliased to opaque names, docstrings stripped. Use this when sharing code with parties you don't trust.
+- `--json`: emit a status JSON instead of generating context. Useful as a probe to check whether CLOAK is available and what policy applies; doesn't actually produce the redacted output.
 
-**Status:** Phase 3 — under development. Phase 1 returns scaffold-only output.
+The default markdown output structure:
+- A stable HTML-comment header with version, policy source, and `strict: true|false` for downstream tooling.
+- A `## Files` section listing all input files.
+- Per-file sections with imports, class shapes, function/method signatures, docstrings (per policy).
+- Function/method bodies replaced with `...` for Python, `/* [REDACTED BY CLOAK] */` for JS/TS.
+- Module-level UPPER_SNAKE_CASE constants holding dict/list/object/array literals replaced with `...` (Python) or `/* [REDACTED BY CLOAK] */ null` (JS/TS).
 
-**Phase 3 markdown output structure (when not using `--json`):**
-- File tree of included files
-- Per-file: imports, class shapes, function signatures, docstrings (per policy)
-- Function bodies replaced with `# [REDACTED BY CLOAK]`
-- Module-level "proprietary tables" (per `sensitive_paths` policy) redacted
-- Stable header comment: `<!-- generated by cloak X.Y.Z; policy <hash>; strict=<bool> -->`
+`--json` status output:
+
+```json
+{
+  "command": "context",
+  "status": "ok",
+  "files_discovered": 12,
+  "policy_loaded_from": "/abs/path/to/.cloakpolicy",
+  "policy_version": 1,
+  "strict": false,
+  "implementation_status": "Python supported; JS/TS supported via tree-sitter."
+}
+```
 
 ### `cloak obfuscate`
 
-Produce a transformed copy of a repo verified against a test command.
+Produce a transformed copy of a repo, optionally gated on a test command passing.
 
 ```bash
-cloak obfuscate <path> --out <out_dir> [--verify "TEST_CMD"] [--profile standard|aggressive] [--policy PATH] [--json]
+cloak obfuscate <path> --out <out_dir> [--verify "<test_cmd>"] [--profile standard|aggressive] [--policy <file>] [--json]
 ```
 
-- `--out`: required. Output directory; must not exist or must be writable.
-- `--verify "TEST_CMD"`: shell command run inside the output dir. Operation FAILS (non-zero exit) if the command fails.
-- `--profile`: `standard` (rename privates only) or `aggressive` (additional transforms; see policy `obfuscate_defaults`).
+- `--out`: required. Output directory; must not exist or must be empty.
+- `--verify "<test_cmd>"`: shell command run inside the output dir. The operation FAILS (exit 1) if the command exits non-zero. This is the differentiating feature — only succeeds if the user's tests pass against the obfuscated copy.
+- `--profile`: currently `standard` is the only supported value. `aggressive` is reserved.
 
-**Status:** Phases 4-5 — under development. Phase 1 returns scaffold-only output.
+JSON output:
 
-**Side effects (Phases 4-5):** writes the obfuscated copy plus `cloak-manifest.json` (audit trail with source/output hashes, rename map, policy snapshot, verify result). See `src/cloak/obfuscate/manifest.py` for the schema.
+```json
+{
+  "command": "obfuscate",
+  "status": "ok",
+  "output_dir": "/abs/path/to/out",
+  "manifest_path": "/abs/path/to/out/cloak-manifest.json",
+  "files_copied": 1,
+  "files_transformed": 2,
+  "rename_count": 4,
+  "policy_loaded_from": "/abs/path/to/.cloakpolicy",
+  "verify_command": "pytest",
+  "verify_passed": true
+}
+```
+
+`status` is `"ok"` on success, `"verify_failed"` when `--verify` was passed and the test command exited non-zero, `"error"` when the operation couldn't proceed (e.g., output directory not empty). The output is still written when `verify_failed` so users can inspect what went wrong.
+
+The output directory always contains `cloak-manifest.json` — the audit-trail artifact with: cloak version, generated-at timestamp, sha256 of every source file and every output file, the rename map keyed `path:original`, the policy hash + full policy snapshot, and (if applicable) the verify command + its result. The schema is in [`src/cloak/obfuscate/manifest.py`](../src/cloak/obfuscate/manifest.py).
 
 ## Exit codes
 
-All commands follow this contract:
-
 - `0` — success.
-- `1` — operation completed but had findings/warnings the caller should inspect (`scan` finds secrets, `obfuscate` verify failed). Inspect JSON for details.
-- `2` — usage error (bad arguments, missing required option).
-- `3` — runtime error (file not readable, policy parse failure, etc.).
-- `64-78` — reserved for future use.
+- `1` — operation completed with findings or verify failure that the caller should look at (e.g., `cloak scan` found secrets, `cloak obfuscate --verify` failed).
+- `2` — usage / validation error (bad arguments, output directory not empty, etc.).
 
-When in doubt, parse JSON output for `status` field rather than depending only on exit code.
+When in doubt, parse the JSON `status` field rather than relying only on the exit code.
 
 ## Policy file (`.cloakpolicy`)
 
-YAML at the repo root. Auto-discovered by walking up from the target path. CLOAK applies sensible defaults if absent.
+YAML at the repo root. CLOAK auto-discovers it by walking up from the target path. If no policy is found, sensible defaults apply.
 
 A short example:
 
 ```yaml
 version: 1
-sensitive_paths: ["src/pricing/**", "src/auth/**"]
+sensitive_paths: ["src/pricing/**"]
 public_api: ["QuoteEngine.calculate_quote"]
 context_defaults:
   keep_docstrings: true
@@ -167,57 +167,58 @@ context_defaults:
   alias_enums: false
 obfuscate_defaults:
   profile: standard
+  strip_docstrings: false
 ```
 
-Full annotated example: [`.cloakpolicy.example`](../.cloakpolicy.example) at the repo root.
+A full annotated example is at [`.cloakpolicy.example`](../.cloakpolicy.example) at the repo root.
 
-Agents should NOT modify a project's `.cloakpolicy` without explicit user consent. The policy is governance — treat it like a CODEOWNERS file or a CI config.
+**Don't modify a project's `.cloakpolicy` without explicit user consent.** Treat it like a CODEOWNERS file or a CI config — it's governance, not configuration you can adjust on the user's behalf.
 
 ## Common patterns
 
-### Pattern 1 — Build a redacted context packet (fob-style)
+### Building a redacted context packet for an LLM
 
 ```bash
-# Probe: is CLOAK installed and does this repo have a policy?
+# Probe: is CLOAK installed and is there a policy in this repo?
 cloak scan /path/to/repo --json
 
-# If policy_loaded_from is non-null OR user explicitly asked for redaction:
+# If a policy was loaded OR the user explicitly asked for redaction:
 cloak context /path/to/repo --out /tmp/safe.md
 # Use /tmp/safe.md as the source-code section of the packet.
 ```
 
-### Pattern 2 — Pre-paste workflow
+### Pre-paste workflow (user is about to ask an LLM for help)
 
 ```bash
-# User wants to ask an LLM for help on a file:
 cloak context /path/to/repo/src/foo.py --copy
-# Tell user: "Redacted view is on your clipboard; paste away."
+# Tell the user: "Redacted view is on your clipboard; paste away."
 ```
 
-### Pattern 3 — Prepare for a contractor
+### Preparing source for a contractor
 
 ```bash
 cloak obfuscate /path/to/repo --out /tmp/repo.cloaked --verify "pytest"
-# Operation succeeds only if tests pass against the obfuscated copy.
-# Manifest at /tmp/repo.cloaked/cloak-manifest.json is the audit artifact.
+# If exit 0, the obfuscated copy passes the user's tests — safe to ship.
+# If exit 1, look at the JSON output's verify-related fields and tell the user.
+# Either way, /tmp/repo.cloaked/cloak-manifest.json is the audit artifact.
 ```
 
-## Honesty constraints for tools that wrap CLOAK
+## Honesty constraints when describing CLOAK to users
 
-When you (the agent / wrapper tool) describe CLOAK output to a user, follow CLOAK's positioning:
+If your tool surfaces CLOAK output to a human, please match CLOAK's positioning:
 
-- DO say: "CLOAK redacted the proprietary parts before sending."
-- DO say: "CLOAK created a transformed copy that still passes your tests."
-- DO NOT say: "Your code is now safe from AI."
-- DO NOT say: "This is unreadable to LLMs."
-- DO NOT say: "This is encrypted."
+- DO: "CLOAK redacted the proprietary parts before sending."
+- DO: "CLOAK created a transformed copy that still passes your tests."
+- DON'T: "Your code is now safe from AI."
+- DON'T: "This is unreadable to LLMs."
+- DON'T: "This is encrypted."
 
-Obfuscation is friction, not cryptographic protection. The README at the CLOAK repo root has the full "What CLOAK is NOT" list — surface those caveats verbatim if a user asks about CLOAK's guarantees.
+Obfuscation is friction, not cryptographic protection. The "What CLOAK is NOT" section in the [README](../README.md) is the canonical list of caveats — surface that wording verbatim if a user asks about CLOAK's guarantees.
 
 ## Reporting integration issues
 
-File issues at https://github.com/newtophilly/cloak/issues with:
+Open an issue at https://github.com/newtophilly/cloak/issues with:
 - The exact CLOAK version (`cloak --version`).
-- The integrating tool name and version.
-- The command invoked and full output.
-- Expected vs actual behavior.
+- Which tool was integrating with CLOAK (yours, fob, your own client, etc.).
+- The command invoked and the full output.
+- What you expected vs. what happened.
