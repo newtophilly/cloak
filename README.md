@@ -151,8 +151,8 @@ A full annotated example is at [`.cloakpolicy.example`](.cloakpolicy.example).
 
 ## Documentation
 
-- [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — how this is being built, in the open
-- [`docs/research/`](docs/research/) — Phase 0 validation experiment + competitive landscape research
+- [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — current state, what's shipped, known v1 limits, what's not yet built
+- [`docs/research/`](docs/research/) — the Phase 0 validation experiment that informed CLOAK's redaction strategy (a fake industrial-automation pricing engine + the LLM responses + our PASS/CONDITIONAL-PASS evaluations)
 
 ## Integrations
 
