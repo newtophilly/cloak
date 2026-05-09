@@ -1,265 +1,103 @@
-# CLAUDE_CODE_BUILD_PLAN.md
-
-## CLOAK Build Brief
-
-CLOAK is a local Shadow-AI governance tool for developers and engineering teams.
-
-Positioning:
-CLOAK gives teams an enforceable policy for what source code is allowed to leave a developer's machine and reach an LLM. It prevents sensitive source from being sent to LLMs, generates safe AI-ready context, and creates verified obfuscated copies for sharing with contractors and third parties.
-
-The market problem is "Shadow AI": leadership tells engineers not to paste code into ChatGPT/Claude, but they do it anyway because they have deadlines. CLOAK is the sanctioned path — a CLI a CTO can mandate that lets developers participate in AI workflows without leaking IP or secrets.
-
-Do not claim that plaintext source can be made impossible for AI to understand. Real protection comes from blocking, redacting, encrypting, compiling, or never sending the source. CLOAK is a governance and friction tool, not an unbreakable cipher.
-
-## MVP Commands
-
-Build these first:
-
-```bash
-cloak scan ./repo
-cloak context ./repo --out safe-context.md
-cloak obfuscate ./repo --out ./repo.cloaked --verify "pytest"
-```
-
-## Architecture
-
-```text
-cloak/
-  cli.py
-  config.py
-  filesystem.py
-  policy.py
-  scan/
-    scanner.py
-    secrets.py
-    report.py
-  context/
-    generator.py
-    python_adapter.py
-    js_adapter.py
-  obfuscate/
-    python_obfuscator.py
-    js_obfuscator.py
-    manifest.py
-  verify.py
-  templates/
-  tests/
-```
-
-## Phase 1: CLI Foundation
-
-Implement:
-- Python package scaffold.
-- CLI with subcommands: `scan`, `context`, `obfuscate`.
-- Path walking with `.cloakignore`.
-- `.cloakpolicy` loading.
-- JSON and terminal output modes.
-- No git assumptions.
-
-Suggested stack:
-- Python 3.11+
-- `typer` or `argparse`
-- `pathspec` for ignore files
-- `rich` optional for terminal output
-- `pytest` for tests
-
-## Phase 2: Scanner
-
-Implement `cloak scan`.
-
-Detect:
-- API keys and tokens.
-- `.env` style secrets.
-- Private keys.
-- Hardcoded endpoints.
-- Suspicious auth headers.
-- Sensitive comments: TODOs, credentials, proprietary notes.
-- Large pasted code blocks if scanning markdown.
-
-Output:
-- Severity.
-- File path.
-- Line number.
-- Rule id.
-- Redacted preview.
-- Suggested action.
-
-Do not print raw secrets.
-
-## Phase 3: Safe Context Generator
-
-Implement `cloak context`.
-
-For Python:
-- File tree.
-- Imports.
-- Function/class names.
-- Signatures.
-- Docstrings only if policy allows.
-- Redacted function bodies.
-- Error/stack trace redaction helper.
-
-For JS/TS:
-- Imports/exports.
-- Function/class signatures.
-- Type/interface names.
-- Redacted implementation bodies.
+# CLOAK — current state
 
-Output should be a markdown file designed for pasting into an LLM without leaking proprietary logic.
+> This document used to be a phased build plan. It's now a **status report** of what actually exists, what works in v1 with known limits, and what's deferred. Written in plain prose, not checklists. Last updated 2026-05-08.
 
-## Phase 4: Python Obfuscator
+## What CLOAK is, in one paragraph
 
-Implement `cloak obfuscate` for Python first.
+A local CLI that helps developers share code with LLMs without leaking proprietary IP or secrets. Three commands — `scan`, `context`, `obfuscate` — operate on a repo or file under a `.cloakpolicy` checked into the repo. Runs locally; no server, no SaaS. Apache 2.0. Published to PyPI as `cloak-cli`.
 
-Features:
-- Copy repo to output directory.
-- Preserve ignored files behavior.
-- Strip comments.
-- Optional docstring stripping.
-- Rename local/private identifiers safely.
-- Do not rename public exported API by default.
-- Encode safe string literals.
-- Generate `cloak-manifest.json`.
-- Run syntax verification.
-- Run user-supplied `--verify` command inside output directory.
+The pitch in one sentence: **the local-first, repo-governed answer to Shadow AI**.
 
-Avoid unsafe transforms:
-- Do not mutate strings that look like secrets.
-- Do not rename magic methods.
-- Do not rename imported external symbols.
-- Do not flatten control flow in MVP.
+What CLOAK is *not*: unbreakable protection. A motivated reader (human or LLM) given an obfuscated copy of your code can still extract logic. CLOAK reduces leak surface and creates friction. That distinction is non-negotiable in marketing copy.
 
-## Phase 5: JS/TS Obfuscator
+## What's shipped and works
 
-Implement after Python works.
+### `cloak scan` — secrets and proprietary markers
 
-Preferred approach:
-- Use Babel parser/generator or wrap a known JS obfuscator.
-- Strip comments.
-- Rename local/private identifiers.
-- Encode string literals.
-- Preserve module imports/exports unless aggressive mode is enabled.
-- Run user-supplied verify command.
+Wraps [`detect-secrets`](https://github.com/Yelp/detect-secrets) for the heavy lifting (years of regex/entropy tuning come for free) and layers in custom regex rules from `.cloakpolicy`'s `secret_rules`. Returns a structured findings list with severity, file, line, rule id, redacted preview, suggested action. **Raw secrets are never printed** — every preview goes through a redaction helper. Terminal mode shows a green "Clean" panel when no findings, a colored severity table when findings exist. JSON mode is forward-compatible with future fields. Exit 1 on findings, 0 clean.
 
-## Phase 6: Eval Harness
+This is genuinely commodity tech. The differentiator is that the policy file you wrote travels with the rest of the tool's output (`context`, `obfuscate`).
 
-Add later:
+### `cloak context` — redacted markdown for LLM paste
 
-```bash
-cloak eval ./repo.cloaked
-```
+Generates a markdown view of a repo where function bodies are replaced with `...` (Python) or `/* [REDACTED BY CLOAK] */` (JS/TS) and module-level `UPPER_SNAKE_CASE` constants holding dict/list/object/array literals are redacted. Imports, class shapes, function signatures, type definitions, and (per policy) docstrings are preserved.
 
-Run prompt-based checks:
-- Refactor test.
-- Logic extraction test.
-- Secret leak test.
+`--strict` is the second redaction tier. It additionally aliases enum values (`NORTHEAST = "NE"` → `VALUE_0 = "V0"`) and strips all docstrings. This tier was justified by the Phase 0 case study (`docs/research/`): the default redaction was strong enough that an LLM couldn't extract specific numbers from a fake pricing engine, but enum names plus general industry knowledge let it correctly *order* regions and categories. `--strict` closes that gap for compliance/contractor scenarios.
 
-This is a benchmark only, not a guarantee.
+`--copy` puts the result on the system clipboard. `--out FILE` writes to disk. Both compose with each other.
 
-## Gemini Ideas Integration
+Python uses the stdlib `ast` module. JS/TS uses `tree-sitter` with a byte-splice strategy: parse → collect ranges → splice replacements. No "unparse" step; original formatting and comments outside redacted regions survive. Supported extensions: `.py`, `.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.tsx`.
 
-Use:
-- Control-flow flattening only in `--profile aggressive`.
-- Fragmented string reconstruction only for non-secret literals.
-- "Test Suite from Hell" as `cloak eval`.
+### `cloak obfuscate` — verified transformed copy
 
-Skip for v1:
-- Dead-code noise.
-- Custom DSL.
-- Claims that obfuscation equals true security.
+Produces a transformed copy of a repo and (if you pass `--verify "<cmd>"`) runs your test command inside the output dir. **If the verify command fails, the operation reports failure (exit 1).** This is the headline differentiator — no other open-source LLM-privacy or general-purpose obfuscator runs the user's tests as a correctness gate.
 
-## Done Criteria
+Per file: rename module-private identifiers (names starting with `_`) to deterministic opaque names (`_a000`, `_a001`, ...). Skip dunder-like names (`__version`, `__dirname`), all-underscore names, and anything in `policy.public_api` (with trailing-`*` wildcard support). Optionally strip docstrings per `policy.obfuscate_defaults.strip_docstrings`. Non-source files are copied through unchanged.
 
-MVP is done when:
-- `cloak scan` finds secrets without leaking them.
-- `cloak context` creates useful safe markdown.
-- `cloak obfuscate` transforms Python code and preserves tests.
-- Verification failure blocks success.
-- README clearly says CLOAK provides privacy tooling and obfuscation friction, not impossible-to-break protection.
+Output dir gets a `cloak-manifest.json` with: cloak version, generated-at timestamp, sha256 of every source file and every output file, the rename map keyed `path:original`, the policy hash + full policy snapshot, the verify command + its result. This is the audit-trail artifact compliance buyers actually ask for.
 
-## Adjustments (added 2026-05-08)
+Refuses to overwrite a non-empty output directory.
 
-Refinements to apply during implementation. These override the phase descriptions above where they conflict.
+### `cloak policy init` — onboarding wizard
 
-### Scanner (Phase 2)
-- Do not roll our own secrets engine. Wrap `detect-secrets` or `gitleaks` and layer CLOAK-specific rules on top (proprietary endpoints, internal tokens, sensitive comments). Years of regex/entropy tuning come for free.
+Detects project layout (Python via `pyproject.toml`/`setup.py`/top-level `.py`; Node via `package.json`/lockfiles; TypeScript via `tsconfig.json` or top-level `.ts`/`.tsx`; common `src/`, `lib/`, `app/`, `packages/` directories) and proposes a sensible default `.cloakpolicy`. Shows a preview panel + project summary, asks once for confirmation, writes the file. `--yes` for non-interactive use; `--force` to overwrite; `--out` for a custom path.
 
-### Safe Context Generator (Phase 3) — elevated priority
-- Treat `context` as a co-equal flagship feature, not a stepping stone to `obfuscate`. The "safe LLM context from a repo" use case has a wider market than obfuscation and is what most security-conscious devs actually want.
-- Add a `--dry-run`/diff mode so users can preview what gets included vs. redacted before generating.
+The reason this exists: a new user shouldn't have to copy `.cloakpolicy.example` and edit it. They should get a working policy in one command.
 
-### Python tooling (Phases 3 & 4) — share infrastructure
-- Collapse `context/python_adapter.py` and `obfuscate/python_obfuscator.py` infra into a shared `cloak/python/` package: one parser/walker, multiple visitors. They are reading the same AST with different output strategies.
-- Use `libcst` over the stdlib `ast` module — preserves formatting, comments, and is round-trippable.
+### Pre-commit hook integration
 
-### Python Obfuscator (Phase 4) — safety adjustments
-- "Rename local/private identifiers safely" requires real scope analysis: closures, nested classes, `nonlocal`, `__all__`, dunder leakage, `getattr`-by-string lookups. Plan weeks of work here, not days.
-- Default to **fail-closed**: if scope analysis cannot prove a rename safe, skip the rename and log. Never break code in pursuit of obfuscation density.
-- "Encode safe string literals" is a footgun — strings are often SQL, log keys, feature-flag names, regex patterns asserted on by tests. Default this **off**; require opt-in per-rule, not per-profile.
-- Add a `--dry-run` mode that shows the rename map and string-encoding plan before writing the output directory.
+A `.pre-commit-hooks.yaml` at the repo root means any team can drop CLOAK into their `.pre-commit-config.yaml` and have `cloak scan` block commits with secrets. Same pattern detect-secrets, gitleaks, and ruff use.
 
-### JS/TS Obfuscator (Phase 5) — depend, don't rebuild
-- Do not build a Babel pipeline ourselves. Depend on `javascript-obfuscator` (mature, configurable) and run it via a Node sidecar from the Python CLI. Our value is the policy layer, ignore-file integration, and verify loop — not parser plumbing.
+### Examples
 
-### Eval Harness (Phase 6) — signal, not gate
-- LLM-prompt-based "did obfuscation hold" checks are non-deterministic and provider-dependent. Pin the model + prompts so runs are comparable.
-- Report `cloak eval` results as a *signal* in CI/output, never as a pass/fail gate on `obfuscate`. Do not let users mistake it for a security guarantee.
+`examples/python-pricing-engine/` and `examples/js-api-client/` ship as runnable demos. Both have their own `.cloakpolicy` and `examples/python-pricing-engine/` includes a real pytest suite so `--verify "pytest"` exercises the verify loop end-to-end.
 
-### Phase 0 — Alpha validation experiment (DONE 2026-05-08)
+## v1 limitations — things that work for the common path but have known gaps
 
-Status: **PASS** with one product finding.
+These are documented in source comments where relevant and in this list. Real production use will hit some of them. The mitigation in every case is `--verify`: if the test suite passes, the obfuscation didn't break anything.
 
-Sample: `phase0/quotecraft.py` (fake industrial-automation pricing engine with proprietary tier discounts, regional markups, margin floors, legacy customer overrides, and bundle stacking rules in function bodies + module-level tables).
+**Obfuscate, both languages**
 
-Test: redacted bodies + tables, kept imports/classes/signatures/docstrings/enum names. Ran two prompts against ChatGPT (web). See `phase0/result_prompt1.md` and `phase0/result_prompt2.md`.
+- Per-file rename only. If `from a import _helper` (Python) or `import { _helper } from './a'` (JS), the import statement keeps `_helper` but the source file rewrites it to `_a000`. Tests catch this immediately.
+- Local-variable shadowing. If a function body locally defines `_helper` shadowing a module-level `_helper`, both names get renamed. Logic bugs may result. Tests catch this immediately.
 
-**Prompt 1 (realistic dev ask) — strong PASS.** LLM produced senior-engineer-grade architectural critique (concrete bug pattern identified, prioritized cleanup list, target architecture sketch) with zero leaks of any proprietary number, threshold, percentage, or customer code.
+**Obfuscate, JS/TS specific**
 
-**Prompt 2 (adversarial probe) — conditional PASS.** LLM refused to invent customer/override codes and named no specific multipliers, floors, or rates. It did correctly infer the *ordering* of regional markups and category margins — but those inferences come from enum names + general industrial-economics knowledge, not from the redacted code itself. Operationally, the leaked information is too imprecise to drive a competitor's counter-quote.
+- Shorthand property in object literals (`{ _helper }`) is *not* renamed because doing so would silently change the object's shape (key vs. value).
+- Destructuring patterns (`const { _helper } = ...`) are *not* renamed for the same reason.
+- TypeScript `interface` and `type alias` declarations are intentionally preserved (they're shapes, no logic). They're also currently NOT considered for rename even if their name starts with `_` — this is conservative.
+- Class methods are not renamed. Methods could be public API — too risky to touch in v1.
 
-**Phase 0 product finding — two redaction tiers, not one:**
-- **Default `cloak context`** (validated by Prompt 1): hide bodies + proprietary tables; keep enum names, docstrings, signatures. Optimized for daily AI workflows where the user wants useful feedback. Sufficient for the indie dev / startup customer profile.
-- **`cloak context --strict`** (justified by Prompt 2): default redaction *plus* alias enum values (`PLC_HARDWARE` → `CATEGORY_A`), strip or paraphrase docstrings, remove stage-order narrative from method docstrings. Optimized for sharing with untrusted parties. Required for the compliance / contractor customer profile.
+**Context, JS/TS**
 
-**Honest limit to document in README:** enum names + domain context + general business knowledge produce structural inferences (e.g., "software margins probably beat hardware margins") that are difficult to suppress without making code unintelligible. CLOAK reduces leak surface; it does not eliminate informed-guesser inference.
+- Tree-sitter recovers from invalid source rather than raising. Parsing a syntactically broken file may produce partial redaction. The CLI doesn't currently flag this — silent best-effort.
 
-### Parser strategy — do not pick one tool
-- **`scan` and `context`** (cross-language, structural): use `tree-sitter`. Multi-language, fast, structural-only is exactly what we need for body redaction and string/comment identification.
-- **Python `obfuscate`** (semantic, scope-aware renaming): use `libcst`. Tree-sitter does not give the scope information needed to prove a rename is safe; libcst is built for Python codemods and round-trips cleanly.
-- Two parsers, each used for what it is best at. Do not try to unify.
+**Scan**
 
-### `.cloakpolicy` — first-class spec, not an afterthought
-This file is the moat. Define the format precisely in Phase 1, not later.
+- The custom `secret_rules` regex engine is plain Python `re`. No entropy heuristics, no contextual rules, no path-aware filtering beyond the default ignore list. For most teams this is fine; for hardcore secrets-scanning use cases, fall back to the upstream `detect-secrets` or `gitleaks` toolchains directly.
 
-Required directives:
-- `redact:` — list of file globs, function names, or class names whose bodies must be redacted in `context` and obfuscated aggressively in `obfuscate`. Example: `redact: ["src/pricing/**", "*.auth_utils.*", "AuthService.*"]`.
-- `keep_docstrings:` — boolean per scope. Default false for redacted scopes, true elsewhere.
-- `secret_rules:` — additions/overrides to the underlying scanner's rule set.
-- `allow_strings:` — globs/regexes of string literals safe to leave un-encoded (URLs to public docs, license headers, etc.).
-- `public_api:` — names that must never be renamed by `obfuscate`. Goes beyond what `__all__` declares.
+**Policy**
 
-A team checks `.cloakpolicy` into their repo. Their CI runs `cloak scan --policy .cloakpolicy`. Devs running `cloak context` get the team's policy applied automatically. This is what makes CLOAK an enforceable governance tool rather than a personal toy.
+- `policy.public_api` only supports exact match and trailing-`*` wildcard. No regex, no glob, no scoped (`Module.Class.method`) matching beyond literal string equality. Workable for v1; will expand if users ask.
 
-### Clipboard integration — make the safe path easier than the unsafe path
-- Add `--copy` (or `-c`) to `cloak context`: writes the safe markdown to stdout/file *and* puts it on the system clipboard via `pbcopy`/`xclip`/`clip.exe` (whichever is on PATH).
-- This collapses the "before I paste" workflow to one command. The unsafe path (right-click → copy raw file) and the safe path should take the same number of keystrokes.
+## What's not started
 
-### Scanner output — "clean bill of health" mode
-- Terminal output for `cloak scan` should make the success state visually unambiguous: a green "Clean — N files scanned, 0 findings" summary card. People paste right after they see green; the UI should reward correctness.
-- JSON mode stays machine-readable for CI.
+- **`cloak eval`** — an LLM-prompt-based regression harness that runs pinned prompts against the redacted output of `cloak context` and verifies nothing leaked. Internal QA tool plus marketing artifact ("every release tested against this leak benchmark"). Not blocking adoption; will build when there's a release worth re-validating.
 
-### Signed manifests — audit-trail for compliance buyers
-The regulated/compliance customer profile (legal, healthtech, fintech) needs cryptographic evidence that a transformed copy came from a specific source.
+- **`cloak policy preview`** — show what `cloak context` would redact across a repo without writing output. Quality-of-life improvement; not in the box yet.
 
-`cloak-manifest.json` should include:
-- SHA-256 hash of every source file included in the transform.
-- SHA-256 hash of every output file.
-- Rename map (original → obfuscated identifier).
-- Policy file hash + content snapshot.
-- CLOAK version.
-- Timestamp.
+- **Cross-file rename for `cloak obfuscate`** — would require building a global symbol map across the repo and tracking imports. Real engineering work. Defer until users hit the per-file limitation in practice.
 
-Add an optional `cloak obfuscate --sign <key>` flag that signs the manifest with a local key. Verifying the manifest later proves the obfuscated bundle was generated from a known source under a known policy. Cheap to add at MVP, very expensive to retrofit, and it is the audit-trail story compliance buyers ask about first.
+- **`--profile aggressive`** — control-flow flattening, fragmented string reconstruction, more aggressive renames. Original build plan mentioned this; deliberately skipped because (a) it's brittle, (b) it pushes CLOAK toward the "claim of strong protection" framing we explicitly avoid.
 
-### Alpha release language target
-Python/AI ecosystem first (already reflected in phase order). Rationale: deeper ecosystem for parsing/AST work, larger noisy paying audience among AI/data developers, matches the team's stronger context. JS/TS lands in Phase 5. Do not split focus before Python is solid.
+- **PyPI publish for the JS-only audience** — currently `pip install cloak-cli`. Some JS-only devs won't install Python tools. An npm wrapper package could fix this; not a priority until someone asks.
+
+## Where the validation came from
+
+Before building any CLI infrastructure, we validated the redaction strategy on a fake industrial-automation pricing engine (`docs/research/quotecraft.py`). We hand-redacted it, pasted both versions to ChatGPT under two prompts (a realistic developer code-review ask, and an adversarial pricing-strategy probe), and judged whether the LLM could extract the proprietary numbers. Strong PASS on the realistic prompt (zero specific numbers leaked, useful architectural critique). Conditional PASS on the adversarial prompt (no specific numbers leaked, but enum names + general business knowledge let it correctly *order* regions and categories — which is what justified `--strict` mode).
+
+Full case study and the LLM responses are in `docs/research/`. Competitive landscape research at `docs/research/COMPETITOR_RESEARCH.md` confirmed the niche was unoccupied as of 2026-05-08.
+
+## Releases and supply chain
+
+Five PyPI releases shipped as of writing — `0.1.0` through `0.2.1`. Tag a `v*` and the `release.yml` workflow builds and publishes via PyPI Trusted Publisher (OIDC; no tokens stored). Branch protection on `main` requires the CI matrix (Python 3.11/3.12/3.13) green before any merge. The `pypi` GitHub environment + Trusted Publisher together mean only this repo's `release.yml` workflow can publish `cloak-cli` — no API tokens to steal, no other repo or workflow accepted by PyPI.
