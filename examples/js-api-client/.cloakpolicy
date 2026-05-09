@@ -1,0 +1,25 @@
+# Example policy for the JS API client.
+version: 1
+
+sensitive_paths:
+  - "*.js"
+  - "*.ts"
+
+# `fetchJson` is the public API — never let obfuscate rename it.
+public_api:
+  - "fetchJson"
+
+secret_rules: []
+allow_strings: []
+
+context_defaults:
+  keep_docstrings: true
+  redact_function_bodies: true
+  alias_enums: false
+
+obfuscate_defaults:
+  rename_private: true
+  rename_public_api: false
+  encode_strings: false
+  strip_docstrings: false
+  profile: standard

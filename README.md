@@ -83,6 +83,33 @@ $ cloak obfuscate src/payments --out /tmp/payments.cloaked --verify "pytest test
 $ cloak scan . --json   # exits 1 if any secrets, JSON for parsing.
 ```
 
+### Try it on the included examples
+
+The repo ships [`examples/`](examples/) with one Python and one JS project, each with its own `.cloakpolicy`. Clone, install, and run end-to-end against either in 30 seconds:
+
+```bash
+cd examples/python-pricing-engine
+cloak scan .
+cloak context . --copy
+cloak obfuscate . --out /tmp/pricing.cloaked --verify "pytest"
+```
+
+See [examples/README.md](examples/README.md) for the full walkthrough.
+
+### Use as a pre-commit hook
+
+Drop `cloak scan` into `.pre-commit-config.yaml` to block commits that introduce secrets:
+
+```yaml
+repos:
+  - repo: https://github.com/newtophilly/cloak
+    rev: v0.2.0
+    hooks:
+      - id: cloak-scan
+```
+
+Then `pre-commit install` and you're done. See [pre-commit.com](https://pre-commit.com) for general setup.
+
 ## How `.cloakpolicy` works
 
 The policy lives in a `.cloakpolicy` YAML file at the repo root. It's checked into git, versioned with your code, and reviewed via the same PR process as everything else. Authority = whoever has merge access.

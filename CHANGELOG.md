@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-08
+
+### Added
+- `.pre-commit-hooks.yaml` at repo root. Users can add `cloak-scan` to their `.pre-commit-config.yaml` and `cloak scan` runs as a pre-commit gate (exits 1 on findings, blocks the commit). A second `cloak-context-preview` hook is provided at `stages: [manual]` for opt-in invocation.
+- `examples/` directory with two end-to-end demos: `python-pricing-engine/` (with pytest coverage so `--verify "pytest"` works) and `js-api-client/`. Each has its own `.cloakpolicy`. New users can `cd examples/python-pricing-engine && cloak scan .` and see CLOAK in action in 30 seconds. See `examples/README.md` for the walkthrough.
+- README "Try it on the included examples" + "Use as a pre-commit hook" sections.
+
 ## [0.2.0] - 2026-05-08
 
 Feature matrix complete: all three headline commands now work for both Python and JS/TS.

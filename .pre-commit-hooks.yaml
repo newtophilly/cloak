@@ -1,0 +1,35 @@
+# pre-commit hook definitions for CLOAK.
+#
+# Add to your .pre-commit-config.yaml:
+#
+#   repos:
+#     - repo: https://github.com/newtophilly/cloak
+#       rev: v0.2.0
+#       hooks:
+#         - id: cloak-scan
+#
+# See https://pre-commit.com for general pre-commit setup.
+
+- id: cloak-scan
+  name: cloak scan
+  description: >-
+    Find secrets and proprietary markers in code before commit. Wraps detect-secrets and
+    layers in policy.secret_rules from .cloakpolicy. Exits 1 on findings (blocks commit).
+  entry: cloak scan
+  language: python
+  pass_filenames: false
+  args: ["."]
+  always_run: true
+  stages: [pre-commit]
+
+- id: cloak-context-preview
+  name: cloak context (preview only)
+  description: >-
+    Render a redacted markdown view of the repo. Useful as a manual check that the redaction
+    output looks right. Does not block commits — `stages: [manual]` means run only when you
+    invoke it explicitly: `pre-commit run cloak-context-preview --hook-stage manual`.
+  entry: cloak context
+  language: python
+  pass_filenames: false
+  args: [".", "--json"]
+  stages: [manual]
