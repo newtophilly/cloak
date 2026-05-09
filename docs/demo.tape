@@ -1,10 +1,10 @@
 # VHS tape: regenerate with `vhs docs/demo.tape` from the repo root.
 # Outputs docs/demo.gif (~35s).
-# Uses absolute paths because VHS spawns its own shell without the project venv active.
+# All paths are repo-relative so the tape is portable.
 
 Output docs/demo.gif
 
-Env PATH "/Users/nathan/Desktop/CLOAK/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+Env PATH "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 Env PS1 "$ "
 
 Set Shell "bash"
@@ -16,8 +16,9 @@ Set TypingSpeed 40ms
 Set PlaybackSpeed 1.0
 
 # Set up a clean working copy of the example so the demo is deterministic.
+# Activates the local venv (relative path) so `cloak` and `pytest` are on PATH.
 Hide
-Type "rm -rf /tmp/cloak-demo && cp -R /Users/nathan/Desktop/CLOAK/examples/python-pricing-engine /tmp/cloak-demo && cd /tmp/cloak-demo && export PS1='$ ' && clear"
+Type "source .venv/bin/activate && rm -rf /tmp/cloak-demo /tmp/cloaked && cp -R examples/python-pricing-engine /tmp/cloak-demo && cd /tmp/cloak-demo && export PS1='$ ' && clear"
 Enter
 Sleep 800ms
 Show
