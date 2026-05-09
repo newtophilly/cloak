@@ -162,7 +162,7 @@ A full annotated example is at [`.cloakpolicy.example`](.cloakpolicy.example).
 
 CLOAK was built alongside [**fob**](https://fob.sh) — a local workspace for AI-assisted work (project memory, multi-model routing, MCP server, approval-gated edits). Fob handles the workflow runtime; CLOAK handles the policy gate for outbound code. When a fob project has a `.cloakpolicy`, fob can route its context packets through `cloak context` automatically so source is redacted before reaching an LLM.
 
-Both tools are Apache 2.0, both run locally, both are honest about what they do. CLOAK works fine standalone — this integration is value-added, not load-bearing in either direction. See the [CLOAK page on fob.sh](https://fob.sh/cloak.html) for the joint pitch.
+CLOAK is open source under Apache 2.0; fob is a paid product (Founder License via [fob.sh](https://fob.sh)). Both run entirely on the user's machine, both have their own honest scope, and CLOAK works fine standalone — this integration is value-added, not load-bearing in either direction. See the [CLOAK page on fob.sh](https://fob.sh/cloak.html) for the joint pitch.
 
 ## Integrations
 
