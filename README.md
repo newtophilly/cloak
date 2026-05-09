@@ -158,11 +158,17 @@ A full annotated example is at [`.cloakpolicy.example`](.cloakpolicy.example).
 - [`docs/BUILD_PLAN.md`](docs/BUILD_PLAN.md) — current state, what's shipped, known v1 limits, what's not yet built
 - [`docs/research/`](docs/research/) — the Phase 0 validation experiment that informed CLOAK's redaction strategy (a fake industrial-automation pricing engine + the LLM responses + our PASS/CONDITIONAL-PASS evaluations)
 
+## Pairs with [fob](https://fob.sh)
+
+CLOAK was built alongside [**fob**](https://fob.sh) — a local workspace for AI-assisted work (project memory, multi-model routing, MCP server, approval-gated edits). Fob handles the workflow runtime; CLOAK handles the policy gate for outbound code. When a fob project has a `.cloakpolicy`, fob can route its context packets through `cloak context` automatically so source is redacted before reaching an LLM.
+
+Both tools are Apache 2.0, both run locally, both are honest about what they do. CLOAK works fine standalone — this integration is value-added, not load-bearing in either direction. See the [CLOAK page on fob.sh](https://fob.sh/cloak.html) for the joint pitch.
+
 ## Integrations
 
 CLOAK is designed to be called as a subprocess from other developer tools and AI agents. It runs cleanly headless: stable JSON output (`--json`), predictable exit codes, no interactive prompts.
 
-- **[fob](https://fob.sh)** — local AI workspace. When a fob project has a `.cloakpolicy`, fob can route context packets through `cloak context` to redact code before sending to an LLM. CLOAK works fine without fob; this is value-added, not load-bearing.
+- **[fob](https://fob.sh)** — see above; the canonical integration target.
 - **AI agents (Codex, Claude, custom)** — see [`docs/AGENT_INTEGRATION.md`](docs/AGENT_INTEGRATION.md) for the agent-readable integration spec: when to call CLOAK, JSON output contracts, exit codes, and common patterns.
 
 ## Status
