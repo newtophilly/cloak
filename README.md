@@ -107,7 +107,7 @@ Drop `cloak scan` into `.pre-commit-config.yaml` to block commits that introduce
 ```yaml
 repos:
   - repo: https://github.com/newtophilly/cloak
-    rev: v0.2.1
+    rev: v0.3.0
     hooks:
       - id: cloak-scan
 ```
